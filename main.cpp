@@ -1,6 +1,9 @@
 #include <iostream>
+#include<vector>
 
 using namespace std;
+int aproximacao(int numero);
+vector<vector<unsigned char>> normalizar_matriz(vector<vector<unsigned char>> matriz);
 
 int main()
 {
@@ -45,4 +48,33 @@ int main()
     } while (escolha != 0);
     cout << "Programa encerrado.\n";
     return 0;
+}
+
+//definição:arredonda um numero dado na entrada para retorna um numero 2^n(n sendo qualquer numero >= 0).
+//requer: um numero maior que 0.
+//devolve: um numero 2^n mais proximo possivel do numero dado na entrada.
+int aproximacao(int numero){
+    int potencia = 1;
+    while (potencia < numero)
+        potencia = potencia *2;
+    return potencia;          
+}
+//definição:recebendo uma matriz como entrada com linha l e coluna c,cria uma nova matriz com coluna e linha com tamanho maior que c e l, e o numero do tamanho 
+// dever ser o numero de base 2 mais proximo que atende essa condição(de ser maior que c e l)//sei que ficou meio prolixo,depois melhoro
+//requer: uma matriz criada usando definições do include vectors
+//devolve:uma matriz com tamanho 2^n,com os espaços diferentes da matriz original recebendo 0;  
+vector<vector<unsigned char>> normalizar_matriz(vector<vector<unsigned char>> matriz){
+    int linhas = matriz.size();
+    int colunas = matriz[0].size();
+
+    int maior =linhas>=colunas ? linhas:colunas;
+    int tamanho = aproximacao(maior);
+
+    vector<vector<unsigned char>> matriz_normalizada(tamanho,vector<unsigned char>(tamanho,0));
+
+    for (int i = 0;i < linhas; i++)
+       for (int j = 0; j < colunas; j++)
+           matriz_normalizada[i][j] = matriz[i][j];
+
+    return matriz_normalizada;       
 }
