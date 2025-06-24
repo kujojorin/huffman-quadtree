@@ -49,6 +49,8 @@ int main()
         cout << "Menu de Opções:\n";
         cout << "1. Compactar arquivo de imagem\n";
         cout << "2. Compactar arquivo texto\n";
+        cout << "3. Descompactar arquivo de imagem\n";
+        cout << "4. Descompactar arquivo texto\n";
         cout << "0. Sair\n";
         cout << "Escolha uma opção: ";
         cin >> escolha;
@@ -71,7 +73,7 @@ int main()
              cout << "3: JSON convertido" << endl;  
 
             ofstream arquivo("compacto.json");
-            arquivo << resultado.dump(2);
+            arquivo << resultado;
             arquivo.close();
             
             break;
@@ -90,6 +92,9 @@ int main()
         case 0:
             cout << "Saindo do programa.\n";
             break;
+        case 3:
+        
+        case 4:
         default:
             cout << "Opção inválida. Tente novamente.\n";
         }
