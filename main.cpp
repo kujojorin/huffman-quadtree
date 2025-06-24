@@ -201,7 +201,6 @@ no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x,int y,int 
      return node;
 }
 
-<<<<<<< HEAD
 json converter (no* quadtree){
   json j;
   if(quadtree->folha){
@@ -219,9 +218,8 @@ json converter (no* quadtree){
      }     
   }
 }
-=======
 
-FILE* fopen_e_teste(char *caminho, char* modo) {
+FILE* fopen_e_teste(const char *caminho, const char* modo) {
     FILE *f;
     f = fopen(caminho, modo);
     if (f == NULL) {
@@ -233,4 +231,3 @@ FILE* fopen_e_teste(char *caminho, char* modo) {
 
 
 //implementacao do huffman 
->>>>>>> 991145376e2f7376a38141017c1f6a03eebf68fd
