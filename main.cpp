@@ -1,6 +1,9 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <fstream>
+#include <string>
+
 #include <opencv2/opencv.hpp>
 
 using namespace std;
@@ -190,5 +193,17 @@ no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x,int y,int 
 
      return node;
 }
+
+
+FILE* fopen_e_teste(char *caminho, char* modo) {
+    FILE *f;
+    f = fopen(caminho, modo);
+    if (f == NULL) {
+        perror("Erro ao tentar abrir o arquivo.\n");
+        exit(1);
+    }
+    return f;
+}
+
 
 //implementacao do huffman 
