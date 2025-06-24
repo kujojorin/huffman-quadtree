@@ -1,11 +1,19 @@
 #include <iostream>
 #include <vector>
-
+#include <algorithm>
 #include <opencv2/opencv.hpp>
 
 using namespace std;
 int aproximacao(int numero);
 vector<vector<unsigned char>> normalizar_matriz(vector<vector<unsigned char>> matriz);
+struct no{
+    int x,y;
+    char cor; 
+    bool folha;   
+    no* filho[4];
+    no(){x = 0;y = 0;folha = false;
+          for(int i = 0; i< 4; i++) filho[i] = nullptr; }
+};
 
 int main()
 {
@@ -112,4 +120,42 @@ int carregarImagem(const string &file)
     cv::destroyAllWindows();
 
     return 0;
+}
+//definação:verifica se uma parte da matriz tem valores proximos,definindo a aceitabililidade de diferença usando a tolerancia
+//requer: uma matriz,um ponto,o tamanho do quadrado que se deseja verificar,e o numero que esse bloco pode der de valores diferentes entre si;
+//retorna: se a matriz é homegenea ou não segundo a tolerancia;
+
+bool homegenea(vector<vector<unsigned char>> matriz,int x,int y,int tamanho,int tolerancia){
+     unsigned char menor =225;
+     unsigned char maior = 0;
+   //for vai de x a x0 e y a y0,ver se a faixa de numeros é menor que a tolerancia;
+     for (int i = x;i < x + tamanho; i++)
+         for(int j = y; j < y + tamanho; j++){
+           unsigned char valor = matriz [i][j];
+            menor = min(menor,valor);
+            maior = max(maior,valor);
+
+            if(maior - menor > tolerancia )
+                return false;
+         }
+    return true;
+}
+
+no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x,int y,int tamanho,int tolerancia){
+     no *node = new no();
+         
+     if(homegenea (matriz, x, y, tamanho, tolerancia)){
+        node->folha = true;
+        node->cor = matriz[x][y];
+        return node;
+     }
+
+     int meio = tamanho / 2;
+
+     node->filho[0] = criar_quadtree(matriz, x, y, meio, tolerancia);
+     node->filho[1] = criar_quadtree(matriz, x, y +meio, meio, tolerancia);
+     node->filho[2] = criar_quadtree(matriz, x + meio, y, meio, tolerancia);
+     node->filho[3] = criar_quadtree(matriz, x + meio, y + meio, meio, tolerancia);
+
+     return node;
 }
