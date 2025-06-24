@@ -18,7 +18,7 @@ struct no
 {
     int x, y;
     int tamanho;
-    char cor;
+    unsigned char cor;
     bool folha;
     no *filho[4];
     no()
@@ -65,13 +65,13 @@ int main()
             cin >> nomeArquivo;
 
             vector<vector<unsigned char>>imagem = carregarImagem(nomeArquivo,tamanho);
-            no *raiz = criar_quadtree(imagem, 0, 0,tamanho,0);
+            no *raiz = criar_quadtree(imagem, 0, 0,tamanho,30);
              cout << "2: Quadtree criada" << endl;
             json resultado = converter(raiz);
              cout << "3: JSON convertido" << endl;  
 
             ofstream arquivo("compacto.json");
-            arquivo << resultado;
+            arquivo << resultado.dump(2);
             arquivo.close();
             
             break;
@@ -147,9 +147,7 @@ vector<vector<unsigned char>> carregarImagem(const string &file,int &tamanho)
     // convertendo a imagem carregada para cinza
     cv::Mat gray;
     cv::cvtColor(imagem, gray, cv::COLOR_BGR2GRAY);
-
     vector<vector<unsigned char>> mat(gray.rows, vector<unsigned char>(gray.cols));
-
     for (int i = 0; i < gray.rows; i++)
     {
         for (int j = 0; j < gray.cols; j++)
@@ -157,7 +155,7 @@ vector<vector<unsigned char>> carregarImagem(const string &file,int &tamanho)
             mat[i][j] = gray.at<unsigned char>(i, j);
         }
     }
-   cout<<"chegou";
+  
     //auto quadrada = normalizar_matriz(mat);
     vector<vector<unsigned char>>quadrada = normalizar_matriz(mat);
 
@@ -222,7 +220,12 @@ no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x, int y, in
         node->tamanho = tamanho;
         return node;
     }
-
+    if (tamanho == 1) {
+        node->folha = true;
+        node->cor = matriz[x][y];
+        node->tamanho = tamanho;
+        return node;
+    }
     int meio = tamanho / 2;
 
     node->filho[0] = criar_quadtree(matriz, x, y, meio, tolerancia);
@@ -230,6 +233,7 @@ no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x, int y, in
     node->filho[2] = criar_quadtree(matriz, x + meio, y, meio, tolerancia);
     node->filho[3] = criar_quadtree(matriz, x + meio, y + meio, meio, tolerancia);
 
+ 
     return node;
 }
 
