@@ -10,8 +10,8 @@ using json = nlohmann::json;
 using namespace std;
 
 // prototipos
-int carregarImagem(const string &file);
-// FILE* fopen_e_teste( const char *caminho, const char* modo);
+vector<vector<unsigned char>>carregarImagem(const string &file,int&);
+FILE* fopen_e_teste( const char *caminho, const char* modo);
 int aproximacao(int numero);
 vector<vector<unsigned char>> normalizar_matriz(vector<vector<unsigned char>> matriz);
 struct no
@@ -25,14 +25,17 @@ struct no
     {
         x = 0;
         y = 0;
-        folha = false;
         tamanho = 0;
+        cor = 0;
+        folha = false;
         for (int i = 0; i < 4; i++)
             filho[i] = nullptr;
     }
 };
 bool homegenea(vector<vector<unsigned char>> matriz, int x, int y, int tamanho, int tolerancia);
 no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x, int y, int tamanho, int tolerancia);
+json converter(no *quadtree);
+
 
 int main()
 {
@@ -53,20 +56,26 @@ int main()
         // Estrutura switch para verificar a escolha
         switch (escolha)
         {
-        case 1:
-
+        case 1:{
+            int tamanho;
             cout << "Você escolheu a Opção 1\n";
             cout << "Compactacao de arquivo imagem" << endl;
 
             cout << "Informe o nome do arquivo a ser compactado " << endl;
             cin >> nomeArquivo;
 
-            if (carregarImagem(nomeArquivo) != 0)
-            {
-                cout << "Imagem nao foi carregada, tente novamente" << endl;
-            }
+            vector<vector<unsigned char>>imagem = carregarImagem(nomeArquivo,tamanho);
+            no *raiz = criar_quadtree(imagem, 0, 0,tamanho,0);
+             cout << "2: Quadtree criada" << endl;
+            json resultado = converter(raiz);
+             cout << "3: JSON convertido" << endl;  
 
+            ofstream arquivo("compacto.json");
+            arquivo << resultado;
+            arquivo.close();
+            
             break;
+        }
         case 2:
             cout << "Você escolheu a Opção 2\n";
             cout << "Compatacao de arquivo texto" << endl;
@@ -121,16 +130,16 @@ vector<vector<unsigned char>> normalizar_matriz(vector<vector<unsigned char>> ma
     return matriz_normalizada;
 }
 
-int carregarImagem(const string &file)
+vector<vector<unsigned char>> carregarImagem(const string &file,int &tamanho)
 {
 
     // funcao mat da biblioteca opencv
     cv::Mat imagem = cv::imread(file, cv::IMREAD_COLOR);
 
-    if (imagem.empty())
+   if (imagem.empty())
     {
         cerr << "Erro ao carregar imagem:" << file << endl;
-        return -1;
+        return vector<vector<unsigned char>>();
     }
 
     cout << "Imagem carregada com sucesso" << endl;
@@ -148,13 +157,28 @@ int carregarImagem(const string &file)
             mat[i][j] = gray.at<unsigned char>(i, j);
         }
     }
+   cout<<"chegou";
+    //auto quadrada = normalizar_matriz(mat);
+    vector<vector<unsigned char>>quadrada = normalizar_matriz(mat);
 
-    auto quadrada = normalizar_matriz(mat);
+    tamanho = quadrada.size();
+    cout<<"deu certo";
+    return quadrada;
+    //caso queiram testar a normalização,usem o codigo abaixo,a normalização não estava funcionando porque a imagem teste já tinha tamanho 2^n,então usem 
+    //a foto do dragão para testar
+/*
+    cv::Mat imagemQuadrada(quadrada.size(), quadrada[0].size(), CV_8UC1);
+
+ for (int i = 0; i < quadrada.size(); i++) {
+    for (int j = 0; j < quadrada[0].size(); j++) {
+        imagemQuadrada.at<uchar>(i, j) = quadrada[i][j];
+    }
+}
 
     cout << "Imagem carregada para cinza com sucesso" << endl;
     // exibir a imagem
     cv::namedWindow("Original", cv::WINDOW_NORMAL);
-    cv::imshow("Original", imagem);
+    cv::imshow("Original", imagemQuadrada);
 
     cv::waitKey(0);
 
@@ -163,8 +187,7 @@ int carregarImagem(const string &file)
 
     cv::waitKey(0);
     cv::destroyAllWindows();
-
-    return 0;
+*/
 }
 // definação:verifica se uma parte da matriz tem valores proximos,definindo a aceitabililidade de diferença usando a tolerancia
 // requer: uma matriz,um ponto,o tamanho do quadrado que se deseja verificar,e o numero que esse bloco pode der de valores diferentes entre si;
@@ -230,6 +253,7 @@ json converter(no *quadtree)
                 j["filhos"].push_back(nullptr);
         }
     }
+    return j;
 }
 
 FILE *fopen_e_teste(const char *caminho, const char *modo)
