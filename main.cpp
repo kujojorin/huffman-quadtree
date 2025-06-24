@@ -4,6 +4,10 @@
 #include <opencv2/opencv.hpp>
 
 using namespace std;
+
+//prototipos
+int carregarImagem(const string &file);
+FILE* fopen_e_teste( const char *caminho, const char* modo);
 int aproximacao(int numero);
 vector<vector<unsigned char>> normalizar_matriz(vector<vector<unsigned char>> matriz);
 struct no{
@@ -19,6 +23,7 @@ int main()
 {
     int escolha;
     string nomeArquivo;
+    FILE* f;
 
     do
     {
@@ -26,15 +31,10 @@ int main()
         cout << "Menu de Opções:\n";
         cout << "1. Compactar arquivo de imagem\n";
         cout << "2. Compactar arquivo texto\n";
-        cout << "3. Opção 3\n";
         cout << "0. Sair\n";
         cout << "Escolha uma opção: ";
         cin >> escolha;
-#ifdef _WIN32
-        system("cls");
-#else
-        system("clear");
-#endif
+
         // Estrutura switch para verificar a escolha
         switch (escolha)
         {
@@ -53,11 +53,17 @@ int main()
             break;
         case 2:
             cout << "Você escolheu a Opção 2\n";
-            // Coloque aqui o código a ser executado para a Opção 2
-            break;
-        case 3:
-            cout << "Você escolheu a Opção 3\n";
-            // Coloque aqui o código a ser executado para a Opção 3
+            cout << "Compatacao de arquivo texto" << endl;
+
+            cout << "Informe o nome do arquivo a ser compactado" << endl;
+            cin >> nomeArquivo;
+
+            //.c_str converte string para const char 
+            f = fopen_e_teste(nomeArquivo.c_str(), "r");
+
+
+
+
             break;
         case 0:
             cout << "Saindo do programa.\n";
@@ -66,6 +72,7 @@ int main()
             cout << "Opção inválida. Tente novamente.\n";
         }
     } while (escolha != 0);
+
     cout << "Programa encerrado.\n";
     return 0;
 }
@@ -116,6 +123,32 @@ int carregarImagem(const string &file)
     cout << "Imagem carregada com sucesso" << endl;
     // exibir a imagem
     cv::imshow("", imagem);
+    //espera o usuario apertar alguma tecla
+    cv::waitKey(0);
+    //fecha a janela do opencv
+    cv::destroyAllWindows();
+
+    cv::Mat gray;
+    cv::cvtColor(imagem, gray, cv::COLOR_BGR2GRAY);
+
+    vector<vector<unsigned char>> mat(gray.rows, vector<unsigned char>(gray.cols));
+
+    for (int i = 0; i < gray.rows; i++)
+    {
+        for (int j = 0; j < gray.cols; j++)
+        {
+           mat[i][j] = gray.at<unsigned char>(i, j);
+        }
+    }
+
+    auto quadrada = normalizar_matriz(mat);
+    
+
+    cout << "Imagem carregada para cinza com sucesso" << endl;
+    // exibir a imagem
+    cv::imshow("", imagem);
+    //espera o usuario apertar alguma tecla
+    cv::waitKey(0);
     //fecha a janela do opencv
     cv::destroyAllWindows();
 
