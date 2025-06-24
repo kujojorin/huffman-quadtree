@@ -3,36 +3,42 @@
 #include <algorithm>
 #include <fstream>
 #include <string>
-
 #include <opencv2/opencv.hpp>
-#include <json.hpp>
+#include "json.hpp"
 
 using json = nlohmann::json;
 using namespace std;
 
-//prototipos
+// prototipos
 int carregarImagem(const string &file);
-//FILE* fopen_e_teste( const char *caminho, const char* modo);
+// FILE* fopen_e_teste( const char *caminho, const char* modo);
 int aproximacao(int numero);
 vector<vector<unsigned char>> normalizar_matriz(vector<vector<unsigned char>> matriz);
-struct no{
-    int x,y;
+struct no
+{
+    int x, y;
     int tamanho;
-    char cor; 
-    bool folha;   
-    no* filho[4];
-    no(){x = 0;y = 0;folha = false;tamanho = 0;
-          for(int i = 0; i< 4; i++) filho[i] = nullptr; }
+    char cor;
+    bool folha;
+    no *filho[4];
+    no()
+    {
+        x = 0;
+        y = 0;
+        folha = false;
+        tamanho = 0;
+        for (int i = 0; i < 4; i++)
+            filho[i] = nullptr;
+    }
 };
-bool homegenea(vector<vector<unsigned char>> matriz,int x,int y,int tamanho,int tolerancia);
-no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x,int y,int tamanho,int tolerancia);
-
+bool homegenea(vector<vector<unsigned char>> matriz, int x, int y, int tamanho, int tolerancia);
+no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x, int y, int tamanho, int tolerancia);
 
 int main()
 {
     int escolha;
     string nomeArquivo;
-    FILE* f;
+    FILE *f;
 
     do
     {
@@ -48,14 +54,15 @@ int main()
         switch (escolha)
         {
         case 1:
-            
+
             cout << "Você escolheu a Opção 1\n";
             cout << "Compactacao de arquivo imagem" << endl;
 
             cout << "Informe o nome do arquivo a ser compactado " << endl;
             cin >> nomeArquivo;
 
-            if(carregarImagem(nomeArquivo) != 0){
+            if (carregarImagem(nomeArquivo) != 0)
+            {
                 cout << "Imagem nao foi carregada, tente novamente" << endl;
             }
 
@@ -67,11 +74,8 @@ int main()
             cout << "Informe o nome do arquivo a ser compactado" << endl;
             cin >> nomeArquivo;
 
-            //.c_str converte string para const char 
-         //   f = fopen_e_teste(nomeArquivo.c_str(), "r");
-
-
-
+            //.c_str converte string para const char
+            //   f = fopen_e_teste(nomeArquivo.c_str(), "r");
 
             break;
         case 0:
@@ -131,20 +135,21 @@ int carregarImagem(const string &file)
 
     cout << "Imagem carregada com sucesso" << endl;
 
-    //convertendo a imagem carregada para cinza
+    // convertendo a imagem carregada para cinza
     cv::Mat gray;
     cv::cvtColor(imagem, gray, cv::COLOR_BGR2GRAY);
 
     vector<vector<unsigned char>> mat(gray.rows, vector<unsigned char>(gray.cols));
 
-    for (int i = 0; i < gray.rows; i++){
-        for (int j = 0; j < gray.cols; j++){
-           mat[i][j] = gray.at<unsigned char>(i, j);
+    for (int i = 0; i < gray.rows; i++)
+    {
+        for (int j = 0; j < gray.cols; j++)
+        {
+            mat[i][j] = gray.at<unsigned char>(i, j);
         }
     }
 
     auto quadrada = normalizar_matriz(mat);
-    
 
     cout << "Imagem carregada para cinza com sucesso" << endl;
     // exibir a imagem
@@ -161,73 +166,82 @@ int carregarImagem(const string &file)
 
     return 0;
 }
-//definação:verifica se uma parte da matriz tem valores proximos,definindo a aceitabililidade de diferença usando a tolerancia
-//requer: uma matriz,um ponto,o tamanho do quadrado que se deseja verificar,e o numero que esse bloco pode der de valores diferentes entre si;
-//retorna: se a matriz é homegenea ou não segundo a tolerancia;
+// definação:verifica se uma parte da matriz tem valores proximos,definindo a aceitabililidade de diferença usando a tolerancia
+// requer: uma matriz,um ponto,o tamanho do quadrado que se deseja verificar,e o numero que esse bloco pode der de valores diferentes entre si;
+// retorna: se a matriz é homegenea ou não segundo a tolerancia;
 
-bool homegenea(vector<vector<unsigned char>> matriz,int x,int y,int tamanho,int tolerancia){
-     unsigned char menor =225;
-     unsigned char maior = 0;
-   //for vai de x a x0 e y a y0,ver se a faixa de numeros é menor que a tolerancia;
-     for (int i = x;i < x + tamanho; i++)
-         for(int j = y; j < y + tamanho; j++){
-           unsigned char valor = matriz [i][j];
-            menor = min(menor,valor);
-            maior = max(maior,valor);
+bool homegenea(vector<vector<unsigned char>> matriz, int x, int y, int tamanho, int tolerancia)
+{
+    unsigned char menor = 225;
+    unsigned char maior = 0;
+    // for vai de x a x0 e y a y0,ver se a faixa de numeros é menor que a tolerancia;
+    for (int i = x; i < x + tamanho; i++)
+        for (int j = y; j < y + tamanho; j++)
+        {
+            unsigned char valor = matriz[i][j];
+            menor = min(menor, valor);
+            maior = max(maior, valor);
 
-            if(maior - menor > tolerancia )
+            if (maior - menor > tolerancia)
                 return false;
-         }
+        }
     return true;
 }
 
-no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x,int y,int tamanho,int tolerancia){
-     no *node = new no();
-         
-     if(homegenea (matriz, x, y, tamanho, tolerancia)){
+no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x, int y, int tamanho, int tolerancia)
+{
+    no *node = new no();
+
+    if (homegenea(matriz, x, y, tamanho, tolerancia))
+    {
         node->folha = true;
         node->cor = matriz[x][y];
-        node->tamanho =tamanho;
+        node->tamanho = tamanho;
         return node;
-     }
+    }
 
-     int meio = tamanho / 2;
+    int meio = tamanho / 2;
 
-     node->filho[0] = criar_quadtree(matriz, x, y, meio, tolerancia);
-     node->filho[1] = criar_quadtree(matriz, x, y +meio, meio, tolerancia);
-     node->filho[2] = criar_quadtree(matriz, x + meio, y, meio, tolerancia);
-     node->filho[3] = criar_quadtree(matriz, x + meio, y + meio, meio, tolerancia);
+    node->filho[0] = criar_quadtree(matriz, x, y, meio, tolerancia);
+    node->filho[1] = criar_quadtree(matriz, x, y + meio, meio, tolerancia);
+    node->filho[2] = criar_quadtree(matriz, x + meio, y, meio, tolerancia);
+    node->filho[3] = criar_quadtree(matriz, x + meio, y + meio, meio, tolerancia);
 
-     return node;
+    return node;
 }
 
-json converter (no* quadtree){
-  json j;
-  if(quadtree->folha){
-   j["folha"] = true;
-   j["valor"] =quadtree->cor;
-  }
-  else{
-     j["folha"] = false;
-     j["filhos"] =json::array();
-     for(int i = 0; i < 4; i++){
-        if(quadtree->filho[i] != nullptr)
-            j["filhos"].push_back(converter(quadtree->filho[i]));
-          else
-            j["filhos"].push_back(nullptr);  
-     }     
-  }
+json converter(no *quadtree)
+{
+    json j;
+    if (quadtree->folha)
+    {
+        j["folha"] = true;
+        j["valor"] = quadtree->cor;
+    }
+    else
+    {
+        j["folha"] = false;
+        j["filhos"] = json::array();
+        for (int i = 0; i < 4; i++)
+        {
+            if (quadtree->filho[i] != nullptr)
+                j["filhos"].push_back(converter(quadtree->filho[i]));
+            else
+                j["filhos"].push_back(nullptr);
+        }
+    }
 }
 
-FILE* fopen_e_teste(const char *caminho, const char* modo) {
+FILE *fopen_e_teste(const char *caminho, const char *modo)
+{
     FILE *f;
     f = fopen(caminho, modo);
-    if (f == NULL) {
+    if (f == NULL)
+    {
         perror("Erro ao tentar abrir o arquivo.\n");
         exit(1);
     }
     return f;
 }
 
-
-//implementacao do huffman 
+// implementacao do huffman
