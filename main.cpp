@@ -2,22 +2,28 @@
 #include <vector>
 #include <algorithm>
 #include <opencv2/opencv.hpp>
+#include <json.hpp>
 
+using json = nlohmann::json;
 using namespace std;
 
 //prototipos
 int carregarImagem(const string &file);
-FILE* fopen_e_teste( const char *caminho, const char* modo);
+//FILE* fopen_e_teste( const char *caminho, const char* modo);
 int aproximacao(int numero);
 vector<vector<unsigned char>> normalizar_matriz(vector<vector<unsigned char>> matriz);
 struct no{
     int x,y;
+    int tamanho;
     char cor; 
     bool folha;   
     no* filho[4];
-    no(){x = 0;y = 0;folha = false;
+    no(){x = 0;y = 0;folha = false;tamanho = 0;
           for(int i = 0; i< 4; i++) filho[i] = nullptr; }
 };
+bool homegenea(vector<vector<unsigned char>> matriz,int x,int y,int tamanho,int tolerancia);
+no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x,int y,int tamanho,int tolerancia);
+
 
 int main()
 {
@@ -59,7 +65,7 @@ int main()
             cin >> nomeArquivo;
 
             //.c_str converte string para const char 
-            f = fopen_e_teste(nomeArquivo.c_str(), "r");
+         //   f = fopen_e_teste(nomeArquivo.c_str(), "r");
 
 
 
@@ -180,6 +186,7 @@ no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x,int y,int 
      if(homegenea (matriz, x, y, tamanho, tolerancia)){
         node->folha = true;
         node->cor = matriz[x][y];
+        node->tamanho =tamanho;
         return node;
      }
 
@@ -191,4 +198,17 @@ no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x,int y,int 
      node->filho[3] = criar_quadtree(matriz, x + meio, y + meio, meio, tolerancia);
 
      return node;
+}
+
+json converter (no* quadtree){
+  json j;
+  if(quadtree->folha){
+   j["folha"] = true;
+   j["valor"] =quadtree->cor;
+  }
+  else{
+    j["folha"] = false;
+    j["filhos"] =json::array();
+    
+  }
 }
