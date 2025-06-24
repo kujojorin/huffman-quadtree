@@ -207,8 +207,13 @@ json converter (no* quadtree){
    j["valor"] =quadtree->cor;
   }
   else{
-    j["folha"] = false;
-    j["filhos"] =json::array();
-    
+     j["folha"] = false;
+     j["filhos"] =json::array();
+     for(int i = 0; i < 4; i++){
+        if(quadtree->filho[i] != nullptr)
+            j["filhos"].push_back(converter(quadtree->filho[i]));
+          else
+            j["filhos"].push_back(nullptr);  
+     }     
   }
 }
