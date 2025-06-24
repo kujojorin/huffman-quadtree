@@ -1,6 +1,10 @@
 # huffman-quadtree
 Um trabalho de compactação de imagens usando QuadTree e comparando com algoritimo de Huffman para arquivos.
 
+para rodar o arquivo, digite no terminal os seguintes comandos: 
+g++ main.cpp -o main `pkg-config --cflags --libs opencv4`
+./main 
+
 # 1. Pré-processamento
 
 Antes de começar a compressão com QuadTree, a imagem deve estar em um formato adequado (ex: tons de cinza ou cor, matriz quadrada, etc.).
