@@ -1,6 +1,9 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <fstream>
+#include <string>
+
 #include <opencv2/opencv.hpp>
 #include <json.hpp>
 
@@ -118,31 +121,24 @@ int carregarImagem(const string &file)
 {
 
     // funcao mat da biblioteca opencv
-    cv::Mat imagem = cv::imread(file);
+    cv::Mat imagem = cv::imread(file, cv::IMREAD_COLOR);
 
     if (imagem.empty())
     {
-        cerr << "Erro ao carregar imagem." << endl;
+        cerr << "Erro ao carregar imagem:" << file << endl;
         return -1;
     }
 
     cout << "Imagem carregada com sucesso" << endl;
-    // exibir a imagem
-    cv::imshow("", imagem);
-    //espera o usuario apertar alguma tecla
-    cv::waitKey(0);
-    //fecha a janela do opencv
-    cv::destroyAllWindows();
 
+    //convertendo a imagem carregada para cinza
     cv::Mat gray;
     cv::cvtColor(imagem, gray, cv::COLOR_BGR2GRAY);
 
     vector<vector<unsigned char>> mat(gray.rows, vector<unsigned char>(gray.cols));
 
-    for (int i = 0; i < gray.rows; i++)
-    {
-        for (int j = 0; j < gray.cols; j++)
-        {
+    for (int i = 0; i < gray.rows; i++){
+        for (int j = 0; j < gray.cols; j++){
            mat[i][j] = gray.at<unsigned char>(i, j);
         }
     }
@@ -152,10 +148,15 @@ int carregarImagem(const string &file)
 
     cout << "Imagem carregada para cinza com sucesso" << endl;
     // exibir a imagem
-    cv::imshow("", imagem);
-    //espera o usuario apertar alguma tecla
+    cv::namedWindow("Original", cv::WINDOW_NORMAL);
+    cv::imshow("Original", imagem);
+
     cv::waitKey(0);
-    //fecha a janela do opencv
+
+    cv::namedWindow("Grayscale", cv::WINDOW_NORMAL);
+    cv::imshow("Grayscale", gray);
+
+    cv::waitKey(0);
     cv::destroyAllWindows();
 
     return 0;
@@ -200,6 +201,7 @@ no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x,int y,int 
      return node;
 }
 
+<<<<<<< HEAD
 json converter (no* quadtree){
   json j;
   if(quadtree->folha){
@@ -217,3 +219,18 @@ json converter (no* quadtree){
      }     
   }
 }
+=======
+
+FILE* fopen_e_teste(char *caminho, char* modo) {
+    FILE *f;
+    f = fopen(caminho, modo);
+    if (f == NULL) {
+        perror("Erro ao tentar abrir o arquivo.\n");
+        exit(1);
+    }
+    return f;
+}
+
+
+//implementacao do huffman 
+>>>>>>> 991145376e2f7376a38141017c1f6a03eebf68fd
