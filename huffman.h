@@ -13,6 +13,7 @@ using namespace std;
 class huffman
 {
 private:
+    int R = 256;
     // estrutura para os nos da arvore
     struct Node
     {
@@ -21,9 +22,41 @@ private:
         Node *esq;   // ponteiro para a subarvore esquerda
         Node *dir;   // ponteiro p a subarvore direita
 
-        static Node *leTrie(ifstream& arquivoEntrada){
-
+        static Node *leTrie(ifstream &arquivoEntrada)
+        {
+            bool ehFolha = bitwrite.readBoolean();
+            if (ehFolha)
+            {
+             return new Node(bitwrite.readChar(), -1, nullptr, nullptr);
+            }else{
+                return new Node('\0', -1, leTrie(arquivoEntrada), leTrie(arquivoEntrada));
+            }
+            
         }
+
+        static Node constroiTrie(int freq)
+        {
+            // inicializando fila de prioridade
+            MinPQ<Node> pq = new MinPQ<Node>();
+
+            for (char c = 0; c < huffman::R; c++)
+            {
+               if (freq[c] > 0)
+               {
+                pq.insert(new Node(c, freq[c], nullptr, nullptr));
+               }
+            }
+
+            while (pq.size() > 1)
+            {
+               Node esq = pq.delMin();
+               Node dir = pq.delMin();
+               Node pai = new Node('\0', esq.freq + dir.freq, esq, dir);
+               pq.insert(pai);
+            }
+            
+        }
+
 
         Node(unsigned char s, size_t f, Node *esquerda = nullptr, Node *direita = nullptr)
             : symbol(s), freq(f), esq(esquerda), dir(direita) {}
@@ -42,14 +75,13 @@ private:
     Node *root;
     vector<string> TabelaDeCodigos;
     vector<size_t> TabelaDeFrequencia;
-    void escreverTrie(Node x);
-    void constroiTrie();
+    void escreveTrie(Node x);
     void constroiTabelaCodigo(Node *x, const string &prefix);
     void constroiTabelaFrequencia(const string &arquivoEntrada);
     void escreveDadoComprimido(const string &arquivoEntrada, ofstream &arquivoSaida);
     void leDadoComprimido(ifstream &arquivoEntrada, ofstream &arquivoSaida);
     void deleteTrie(Node *x);
-
+    void constroiCode(string st, Node x, string s);
 public:
     huffman(/* args */);
     ~huffman();
@@ -131,25 +163,26 @@ void huffman::expandir(string &arquivoEntrada, string &arquivoSaida)
     in.close();
 };
 
+void huffman::escreveTrie(Node x) {
+    if (x.ehFolha())
+    {
+      bitwrite.write(true);
+      bitwrite.write(x.ch, 8);
+      return;
+    }
 
-void huffman::escreverTrie(Node x) {
-
+    bitwrite.write(false);
+    escreveTrie(x.esq);
+    escreveTrie(x.dir);
 };
-void huffman::constroiTrie() {
 
-};
-void huffman::constroiTabelaCodigo(Node *x, const string &prefix) {
-
-};
-void huffman::constroiTabelaFrequencia(const string &arquivoEntrada) {
-
-};
-void huffman::escreveDadoComprimido(const string &arquivoEntrada, ofstream &arquivoSaida) {
-
-};
-void huffman::leDadoComprimido(ifstream &arquivoEntrada, ofstream &arquivoSaida) {
-
-};
-void huffman::deleteTrie(Node *x) {
-
-};
+void huffman::constroiCode(string st, Node x, string s){
+    if (!x.ehFolha())
+    {
+        constroiCode(st, x.esq, s + '0');
+        constroiCode(st, x.dir, s + '1');
+    }else{
+        st[x.ch] = s;
+    }
+    
+}
