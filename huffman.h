@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <queue>
 #include <fstream>
+#include <iterator>
 
 using namespace std;
 
@@ -18,7 +19,7 @@ private:
     // estrutura para os nos da arvore
     struct Node
     {
-        unsigned char symbol;
+        unsigned char simbolo;
         size_t freq; // acumula a frequencia de repeticao de cada char
         Node *esq;   // ponteiro para a subarvore esquerda
         Node *dir;   // ponteiro p a subarvore direita
@@ -66,7 +67,7 @@ private:
         }
 
         Node(unsigned char s, size_t f, Node *esquerda = nullptr, Node *direita = nullptr)
-            : symbol(s), freq(f), esq(esquerda), dir(direita) {}
+            : simbolo(s), freq(f), esq(esquerda), dir(direita) {}
 
         bool ehFolha() const
         {
@@ -83,7 +84,6 @@ private:
     vector<string> TabelaDeCodigos;
     vector<size_t> TabelaDeFrequencia;
     void escreveTrie(bitwrite &writer, Node *x);
-    void constroiCode(string st, Node x, string s);
 
     void constroiTabelaFrequencia(const vector<unsigned char> &entrada);
     void constroiTabelaCodigo(Node *x, const string &prefix);
@@ -107,10 +107,15 @@ void huffman::compressao(string &arquivoEntrada, string &arquivoSaida)
 {
     ifstream in(arquivoEntrada, ios::binary);
 
-    vector<unsigned char> entrada(istreambuf_iterator<char>(in),
-                                  istreambuf_iterator<char>());
+    //criando iteradores
+    istreambuf_iterator<char> it(in);
+    istreambuf_iterator<char> end;
 
+    vector<unsigned char> entrada(it, end);
+                                  
+    in.close(); //fechando arquivo de entrada pois nao precisa mais dele
     TabelaDeFrequencia.assign(R,0);
+
     for (unsigned char c : entrada)
     {
         TabelaDeFrequencia[c]++;
@@ -121,17 +126,21 @@ void huffman::compressao(string &arquivoEntrada, string &arquivoSaida)
     TabelaDeCodigos.assign(R, "");
     constroiTabelaCodigo(root, "");
 
+    //abre o arquivo de saida e inicia o escritor de bits
     ofstream saida(arquivoSaida, ios::binary);
     bitwrite escritor(saida);
 
+    //serializa a trie no inicio do arquivo
     escreveTrie(escritor, root);
 
+    //escreve o tamanho original
     uint32_t N = entrada.size();
     for (int shift = 24; shift >= 0; shift -= 8)
     {
         escritor.escreveByte((N >> shift) & 0xFF);
     }
 
+    //escreve os dados comprimidos bit a bit
     for (unsigned char c : entrada)
     {
         const string &code = TabelaDeCodigos[c];
@@ -146,19 +155,23 @@ void huffman::compressao(string &arquivoEntrada, string &arquivoSaida)
 
 void huffman::expandir(string &arquivoEntrada, string &arquivoSaida)
 {
+    //abre o arquivo ja comprimido
     ifstream in(arquivoEntrada, ios::binary);
     bitread leitor(in);
 
-    Node *root = leTrie(leitor);
+    Node *root = Node::leTrie(leitor);
 
+    //le o tamanho original de 4 bytes
     uint32_t n = 0;
     for (int i = 0; i < 4; ++i)
     {
         n = (n << 8) | leitor.leByte();
     }
 
+    //abre o arquivo de saida
     ofstream saida(arquivoSaida, ios::binary);
 
+    //percorre a arvore bit a bit
     for (uint32_t i = 0; i < n; ++i)
     {
         Node *x = root;
@@ -168,7 +181,7 @@ void huffman::expandir(string &arquivoEntrada, string &arquivoSaida)
             bool b = leitor.leBit();
             x = (b ? x->dir : x->esq);
         }
-        saida.put(char(x->symbol));
+        saida.put(char(x->simbolo));
     }
     saida.close();
     in.close();
@@ -179,7 +192,7 @@ void huffman::escreveTrie(bitwrite &escritor, Node *x)
     if (x->ehFolha())
     {
         escritor.escreveBit(true);
-        escritor.escreveByte(x->symbol);
+        escritor.escreveByte(x->simbolo);
     }
     else
     {
@@ -189,29 +202,22 @@ void huffman::escreveTrie(bitwrite &escritor, Node *x)
     }
 };
 
-void huffman::constroiCode(string st, Node x, string s)
-{
-    if (!x.ehFolha())
-    {
-        constroiCode(st, x.esq, s + '0');
-        constroiCode(st, x.dir, s + '1');
-    }
-    else
-    {
-        st[x.ch] = s;
-    }
-}
-
 void huffman::constroiTabelaFrequencia(const vector<unsigned char> &entrada)
 {
-    
+    //garante que TabelaDeFrequencia tem tamanho R e todos os zero
+    TabelaDeFrequencia.assign(R, 0);
+
+    // conta as ocorrências de cada símbolo (0..255)
+    for (unsigned char c : entrada) {
+        TabelaDeFrequencia[c]++;
+    }
     
 }
 void huffman::constroiTabelaCodigo(Node *x, const string &prefix)
 {
     if (x->ehFolha())
     {
-        TabelaDeCodigos[x->symbol] = prefix;
+        TabelaDeCodigos[x->simbolo] = prefix;
         return;
     }
     constroiTabelaCodigo(x->esq, prefix+ '0');

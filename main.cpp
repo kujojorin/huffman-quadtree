@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <fstream>
 #include <string>
+
+#include "huffman.h"
+
 #include <opencv2/opencv.hpp>
 #include "json.hpp"
 
@@ -41,6 +44,7 @@ int main()
 {
     int escolha;
     string nomeArquivo;
+    huffman hf;
     FILE *f;
 
     do
@@ -85,9 +89,9 @@ int main()
             cout << "Informe o nome do arquivo a ser compactado" << endl;
             cin >> nomeArquivo;
 
-            //.c_str converte string para const char
-            //   f = fopen_e_teste(nomeArquivo.c_str(), "r");
+            hf.compressao(nomeArquivo, "comprimido");
 
+           
             break;
         case 0:
             cout << "Saindo do programa.\n";
@@ -95,6 +99,10 @@ int main()
         case 3:
         
         case 4:
+            cout << "Informe o nome do arquivo comprimido: ";
+            cin  >> nomeEntrada;
+            hf.expandir(nomeEntrada, nomeSaida);
+        break;
         default:
             cout << "Opção inválida. Tente novamente.\n";
         }
