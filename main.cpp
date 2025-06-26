@@ -44,6 +44,8 @@ int main()
 {
     int escolha;
     string nomeArquivo;
+    string nomeArquivoSaida = "compacto.huf"; // nome pre definido 
+    string nomeArquivoDescompactado = "descompacto.txt";
     huffman hf;
     FILE *f;
 
@@ -89,7 +91,7 @@ int main()
             cout << "Informe o nome do arquivo a ser compactado" << endl;
             cin >> nomeArquivo;
 
-            hf.compressao(nomeArquivo, "comprimido");
+            hf.compressao(nomeArquivo, nomeArquivoSaida);
 
            
             break;
@@ -100,8 +102,8 @@ int main()
         
         case 4:
             cout << "Informe o nome do arquivo comprimido: ";
-            cin  >> nomeEntrada;
-            hf.expandir(nomeEntrada, nomeSaida);
+            cin  >> nomeArquivo;
+            hf.expandir(nomeArquivo, nomeArquivoDescompactado);
         break;
         default:
             cout << "Opção inválida. Tente novamente.\n";

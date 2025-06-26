@@ -150,7 +150,7 @@ void huffman::compressao(string &arquivoEntrada, string &arquivoSaida)
         }
     }
 
-    saida.close();
+    escritor.flush();
 }
 
 void huffman::expandir(string &arquivoEntrada, string &arquivoSaida)
