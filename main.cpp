@@ -32,7 +32,7 @@ struct no
             filho[i] = nullptr;
     }
 };
-bool homegenea(vector<vector<unsigned char>> matriz, int x, int y, int tamanho, int tolerancia);
+bool homegenea(const vector<vector<unsigned char>> &matriz, int x, int y, int tamanho, int tolerancia);
 no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x, int y, int tamanho, int tolerancia);
 json converter(no *quadtree);
 
@@ -160,12 +160,10 @@ vector<vector<unsigned char>> carregarImagem(const string &file,int &tamanho)
             mat[i][j] = gray.at<unsigned char>(i, j);
         }
     }
-  
     //auto quadrada = normalizar_matriz(mat);
     vector<vector<unsigned char>>quadrada = normalizar_matriz(mat);
-
+ 
     tamanho = quadrada.size();
-    cout<<"deu certo";
     return quadrada;
     //caso queiram testar a normalização,usem o codigo abaixo,a normalização não estava funcionando porque a imagem teste já tinha tamanho 2^n,então usem 
     //a foto do dragão para testar
@@ -196,7 +194,7 @@ vector<vector<unsigned char>> carregarImagem(const string &file,int &tamanho)
 // requer: uma matriz,um ponto,o tamanho do quadrado que se deseja verificar,e o numero que esse bloco pode der de valores diferentes entre si;
 // retorna: se a matriz é homegenea ou não segundo a tolerancia;
 
-bool homegenea(vector<vector<unsigned char>> matriz, int x, int y, int tamanho, int tolerancia)
+bool homegenea(const vector<vector<unsigned char>> & matriz, int x, int y, int tamanho, int tolerancia)
 {
     unsigned char menor = 225;
     unsigned char maior = 0;
