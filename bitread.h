@@ -15,7 +15,7 @@ private:
    int n = 8;
 public:
     bitread(ifstream& in) : in(in){};
-    ~bitread();
+    ~bitread(){};
     bool leBit(){
         if (n == 8)
         {
