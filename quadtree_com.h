@@ -72,30 +72,6 @@ vector<vector<unsigned char>> carregarImagem(const string &file,int &tamanho)
  
     tamanho = quadrada.size();
     return quadrada;
-    //caso queiram testar a normalização,usem o codigo abaixo,a normalização não estava funcionando porque a imagem teste já tinha tamanho 2^n,então usem 
-    //a foto do dragão para testar
-/*
-    cv::Mat imagemQuadrada(quadrada.size(), quadrada[0].size(), CV_8UC1);
-
- for (int i = 0; i < quadrada.size(); i++) {
-    for (int j = 0; j < quadrada[0].size(); j++) {
-        imagemQuadrada.at<uchar>(i, j) = quadrada[i][j];
-    }
-}
-
-    cout << "Imagem carregada para cinza com sucesso" << endl;
-    // exibir a imagem
-    cv::namedWindow("Original", cv::WINDOW_NORMAL);
-    cv::imshow("Original", imagemQuadrada);
-
-    cv::waitKey(0);
-
-    cv::namedWindow("Grayscale", cv::WINDOW_NORMAL);
-    cv::imshow("Grayscale", gray);
-
-    cv::waitKey(0);
-    cv::destroyAllWindows();
-*/
 }
 // definação:verifica se uma parte da matriz tem valores proximos,definindo a aceitabililidade de diferença usando a tolerancia
 // requer: uma matriz,um ponto,o tamanho do quadrado que se deseja verificar,e o numero que esse bloco pode der de valores diferentes entre si;
@@ -151,4 +127,24 @@ no *criar_quadtree(const vector<vector<unsigned char>> &matriz, int x, int y, in
     node->filho[3] = criar_quadtree(matriz, x + meio, y + meio, meio, tolerancia);
 
     return node;
+}
+json converter(no* quadtree) {
+    json j;
+    j["x"] = quadtree->x;
+    j["y"] = quadtree->y;
+    j["tamanho"] = quadtree->tamanho;
+    j["folha"] = quadtree->folha;
+
+    if (quadtree->folha) {
+        j["cor"] = quadtree->cor;
+    } else {
+        j["filhos"] = json::array();
+        for (int i = 0; i < 4; i++) {
+            if (quadtree->filho[i] != nullptr)
+                j["filhos"].push_back(converter(quadtree->filho[i]));
+            else
+                j["filhos"].push_back(nullptr);
+        }
+    }
+    return j;
 }

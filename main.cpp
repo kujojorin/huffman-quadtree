@@ -54,9 +54,9 @@ int main()
              cout << "2: Quadtree criada" << endl;
             json resultado = converter(raiz);
              cout << "3: JSON convertido" << endl;  
-
+            deletar_quadtree(raiz);
             ofstream arquivo("compacto.json");
-            arquivo << resultado.dump(4);
+            arquivo << resultado;
             arquivo.close();
             
             break;
@@ -65,7 +65,7 @@ int main()
             cout << "Você escolheu a Opção 2\n";
             cout << "Compatacao de arquivo texto" << endl;
 
-            cout << "Informe o nome do arquivo a ser compactado" << endl;
+            cout << "Informe o nome do arquivo a ser copactado" << endl;
             cin >> nomeArquivo;
 
             hf.compressao(nomeArquivo, nomeArquivoSaida);
@@ -82,8 +82,18 @@ int main()
             std::ifstream entrada2(nomeArquivo);
             entrada2 >> arquivo;
             entrada2.close();
-       
-    
+            no *arvore = reconstruir_quadtree(arquivo);
+            vector<vector<unsigned char>> imagemReconstruida = reconstruir_imagem(arvore);
+            cv::Mat imagemFinal(imagemReconstruida.size(), imagemReconstruida[0].size(), CV_8UC1);
+            for (int i = 0; i < imagemFinal.rows; i++)
+                for (int j = 0; j < imagemFinal.cols; j++) 
+                           imagemFinal.at<uchar>(i, j) = imagemReconstruida[i][j];
+
+           cout << "Imagem reconstruida com sucesso" << endl;  
+           cv::imwrite("descompacto.png", imagemFinal); 
+           deletar_quadtree(arvore);            
+           break;
+            
         }    
         case 4:
             cout << "Informe o nome do arquivo comprimido: ";

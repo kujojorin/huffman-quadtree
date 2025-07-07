@@ -25,26 +25,6 @@ struct no
     }
 };
 
-json converter(no* quadtree) {
-    json j;
-    j["x"] = quadtree->x;
-    j["y"] = quadtree->y;
-    j["tamanho"] = quadtree->tamanho;
-    j["folha"] = quadtree->folha;
-
-    if (quadtree->folha) {
-        j["cor"] = quadtree->cor;
-    } else {
-        j["filhos"] = json::array();
-        for (int i = 0; i < 4; i++) {
-            if (quadtree->filho[i] != nullptr)
-                j["filhos"].push_back(converter(quadtree->filho[i]));
-            else
-                j["filhos"].push_back(nullptr);
-        }
-    }
-    return j;
-}
 no* reconstruir_quadtree(const json& j) {
     no* node = new no();
     node->x = j["x"];
@@ -63,16 +43,34 @@ no* reconstruir_quadtree(const json& j) {
     }
     return node;
 }
-/*vector<vector<unsigned char>> reconstruir_imagem(no* raiz){
-     if(raiz->folha){
 
-
-     }
-     else{
-        for(int i = 0;i < 4; i++)
-            reconstruir_imagem (raiz->filho[i]);   
-
-     }
-
+void preencher_imagem(no* raiz, vector<vector<unsigned char>>& imagem) {
+    if (raiz->folha) {
+        for (int i = raiz->x; i < raiz->x + raiz->tamanho; i++) {
+            for (int j = raiz->y; j < raiz->y + raiz->tamanho; j++) {
+                imagem[i][j] = raiz->cor;
+            }
+        }
+    } else {
+        for (int i = 0; i < 4; i++) {
+            preencher_imagem(raiz->filho[i], imagem);
+        }
+    }
 }
-*/
+vector<vector<unsigned char>> reconstruir_imagem(no* raiz) {
+    vector<vector<unsigned char>> imagem(raiz->tamanho, vector<unsigned char>(raiz->tamanho, 0));
+    preencher_imagem(raiz, imagem);
+    return imagem;
+}
+void deletar_quadtree(no* raiz) {
+    if (raiz == nullptr) return;
+
+    if (!raiz->folha) {
+        for (int i = 0; i < 4; i++) {
+            deletar_quadtree(raiz->filho[i]);
+        }
+    }
+
+    delete raiz;
+}
+
