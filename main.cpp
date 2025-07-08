@@ -121,5 +121,3 @@ FILE *fopen_e_teste(const char *caminho, const char *modo)
     }
     return f;
 }
-
-// implementacao do huffman
