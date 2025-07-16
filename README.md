@@ -1,88 +1,123 @@
-# huffman-quadtree
-Um trabalho de compactação de imagens usando QuadTree e comparando com algoritimo de Huffman para arquivos.
+# Compressor de Imagens e Textos com Quadtree e Huffman
 
-para rodar o arquivo, digite no terminal os seguintes comandos: 
-g++ main.cpp -o main `pkg-config --cflags --libs opencv4`
-./main 
+## Sobre o Projeto
 
-# 1. Pré-processamento
+Este projeto é uma ferramenta de compressão e descompressão de arquivos desenvolvida em C++, utilizando o framework **GTKmm 4** para a interface gráfica. O programa oferece dois algoritmos distintos: **Huffman** para arquivos de texto e **Quadtree** para imagens, permitindo ao usuário visualizar o progresso e os resultados de forma clara e interativa.
 
-Antes de começar a compressão com QuadTree, a imagem deve estar em um formato adequado (ex: tons de cinza ou cor, matriz quadrada, etc.).
+## Funcionalidades
 
-    carregarImagem()
-    -> Lê uma imagem do disco e converte para uma matriz (ex: usando OpenCV, PIL ou NumPy).
+-   **Interface Gráfica Intuitiva:** Construído com GTKmm 4, o programa oferece uma janela única com todos os controles necessários para a operação.
+-   **Dois Algoritmos de Compressão:**
+    -   **Huffman:** Otimizado para a compressão eficiente de arquivos de texto (`.txt`).
+    -   **Quadtree:** Um algoritmo visual para a compressão de imagens (`.png`, `.jpg`), onde a qualidade pode ser ajustada.
+-   **Modo Duplo:** Suporta tanto **compressão** quanto **descompressão** para os algoritmos implementados.
+-   **Seleção de Arquivos Inteligente:** O seletor de arquivos adapta os filtros automaticamente com base no algoritmo e no modo (compressão/descompressão) selecionado.
+-   **Controle de Qualidade (Quadtree):** Uma barra de rolagem permite ao usuário ajustar o nível de qualidade da compressão de imagens, balanceando o tamanho do arquivo final e a fidelidade visual.
+-   **Feedback em Tempo Real:**
+    -   Uma barra de progresso na interface gráfica e no terminal exibe o andamento do processo.
+    -   A barra de status informa sobre ações, erros e sucesso.
+-   **Relatório de Resultados:** Ao final de cada operação, um diálogo modal exibe um resumo com o tamanho inicial, tamanho final e a taxa de compressão/descompressão.
+-   **Atalho para Pasta de Saída:** Após uma operação bem-sucedida, o explorador de arquivos do sistema é aberto automaticamente na pasta de destino.
+-   **Tratamento de Erros Robusto:** O programa é projetado para capturar erros (como tentar descomprimir um arquivo corrompido) e informar o usuário através de um diálogo, em vez de fechar inesperadamente.
 
-    converterParaEscalaDeCinza(matrizRGB)
-    -> Se necessário, converte a imagem colorida para escala de cinza para simplificar o processo.
+## Como Funciona
 
-    normalizarDimensoes(matriz)
-    -> Adapta a matriz para dimensões 2^n x 2^n (caso necessário, preenchendo com zeros).
+### Compressão Huffman
+A codificação de Huffman é um algoritmo de compressão sem perdas (lossless). Ele funciona analisando a frequência de cada caractere no arquivo de texto. Caracteres que aparecem com mais frequência (como 'a' e 'e' em português) recebem códigos binários mais curtos, enquanto caracteres raros recebem códigos mais longos. O resultado é um arquivo binário (`.huf`) que representa os mesmos dados de forma mais compacta.
 
-# 2. Estrutura de Dados
+### Compressão Quadtree
+A Quadtree é um algoritmo de compressão com perdas (lossy), ideal para imagens. A lógica é visual e recursiva:
+1.  A imagem é dividida em quatro quadrantes iguais.
+2.  Para cada quadrante, o algoritmo verifica se as cores dentro dele são "parecidas" o suficiente, com base em um valor de **tolerância** definido pelo usuário.
+3.  Se as cores forem parecidas, o quadrante inteiro é representado por uma única cor média (ele vira uma "folha" da árvore).
+4.  Se as cores variarem muito (acima da tolerância), o quadrante é novamente dividido em quatro, e o processo se repete para cada um dos novos quadrantes.
+O resultado é salvo em um arquivo `.json` que descreve essa árvore de quadrantes.
 
-Você precisa definir a estrutura da QuadTree e o nó da árvore.
+## Como Executar
 
-    struct NohQuadTree
-    Representa um nó da árvore. Deve conter:
+### Pré-requisitos e Compilação
 
-        -> coordenadas do bloco,
+O código-fonte é multiplataforma, mas o processo de compilação depende do seu sistema operacional.
 
-        -> tamanho,
+---
 
-        -> valor médio ou cor média,
+#### **Opção 1: Linux (Ambiente Recomendado)**
 
-        -> flag se é folha ou não,
+**1. Instalação das Dependências (Para sistemas baseados em Debian/Ubuntu):**
 
-        -> ponteiros para os 4 filhos (NE, NW, SE, SW).
+Abra um terminal e execute o seguinte comando para instalar o compilador, o `make` e as bibliotecas GTKmm e OpenCV:
 
-# 3. Construção da QuadTree (Compressão)
+```bash
+sudo apt-get update && sudo apt-get install build-essential make libgtkmm-4.0-dev libopencv-dev
+```
 
-Essas funções constroem a árvore com base em critérios de homogeneidade de blocos.
+**2. Compilação:**
 
-    ehHomogeneo(matriz, x, y, tamanho, tolerancia)
-    -> Verifica se todos os pixels no bloco [x:x+tamanho, y:y+tamanho] estão dentro de uma variação aceitável (tolerancia).
+Com todas as dependências instaladas, navegue até a pasta raiz do projeto no terminal e simplesmente execute o comando `make`:
 
-    construirQuadTree(matriz, x, y, tamanho, tolerancia)
-    Função recursiva que:
+```bash
+make
+```
 
-        -> Cria um nó folha se o bloco for homogêneo;
+Isso irá compilar todos os arquivos-fonte e gerar um executável chamado `compressor`.
 
-        -> Caso contrário, divide em 4 quadrantes e chama recursivamente.
+---
 
-# 4. Compressão e Armazenamento (opcional)
+#### **Opção 2: Windows (Compilação Avançada)**
 
-Para armazenar ou transmitir a árvore:
+Compilar no Windows requer a configuração de um ambiente de desenvolvimento similar ao do Linux. A forma mais comum é utilizando o **MSYS2**.
 
-    serializarQuadTree(nodo)
-    -> Converte a árvore para uma representação compacta (ex: lista, string, JSON, binário).
+**1. Instalação do Ambiente MSYS2:**
 
-    salvarCompactado(arquivo, dadosSerializados)
-    -> Escreve a versão serializada em arquivo.
+-   Acesse o site [msys2.org](https://www.msys2.org/) e siga as instruções para instalar o MSYS2.
+-   Após a instalação, abra o terminal **MSYS2 MINGW64** (importante usar a versão de 64 bits).
 
-# 5. Descompressão (Reconstrução da Imagem)
+**2. Instalação das Dependências via `pacman`:**
 
-Reconstrói a imagem a partir da árvore:
+No terminal MSYS2 MINGW64, execute os seguintes comandos para instalar o compilador e as bibliotecas necessárias:
 
-    desserializarQuadTree(dados)
-    -> Constrói novamente a árvore a partir do formato serializado.
+```bash
+# Atualizar o gerenciador de pacotes
+pacman -Syu
 
-    reconstruirImagem(nodo, matriz)
-    -> Preenche a matriz de imagem com os valores dos nós folha da árvore.
+# Instalar as ferramentas de compilação
+pacman -S --needed base-devel mingw-w64-x86_64-toolchain
 
-# 6. Avaliação
+# Instalar GTKmm 4 e OpenCV
+pacman -S mingw-w64-x86_64-gtkmm4 mingw-w64-x86_64-opencv
+```
 
-Para avaliar a compressão:
+**3. Compilação:**
 
-    calcularTaxaCompressao(original, compactado)
-    -> Mede a relação de tamanho entre original e versão compactada.
+O `makefile` fornecido no projeto foi escrito para Linux. Ele pode precisar de pequenos ajustes para funcionar corretamente no ambiente MSYS2, mas a estrutura básica é a mesma. Navegue até a pasta do projeto dentro do terminal MSYS2 MINGW64 e execute:
 
-    calcularErro(matrizOriginal, matrizReconstruida)
-    -> Mede erro médio quadrático (RMSE) ou PSNR.
+```bash
+make
+```
 
-# Extras (para imagens coloridas)
+Isso deverá gerar o arquivo `compressor.exe`.
 
-    construirQuadTreeRGB(matrizRGB, x, y, tamanho, tolerancia)
-    -> Extensão da construção da árvore que considera canais RGB individualmente ou juntos.
+---
 
-    ehHomogeneoRGB(...)
-    -> Verifica homogeneidade considerando todos os canais de cor.
+### Execução
+
+-   **No Linux:**
+    ```bash
+    ./compressor
+    ```
+-   **No Windows (dentro do terminal MSYS2):**
+    ```bash
+    ./compressor.exe
+    ```
+
+## Uso da Interface Gráfica
+
+A interface foi projetada para ser um fluxo de trabalho de cima para baixo:
+
+1.  **Escolha o algoritmo:** Selecione "Huffman (Texto)" ou "Quadtree (Imagem)".
+2.  **Modo de Operação:** Marque a caixa "Modo Descompressão" se desejar descomprimir um arquivo.
+3.  **Adicionar Arquivos:** Clique no botão. O seletor de arquivos já estará filtrando pelo tipo de arquivo correto.
+4.  **Ajustar Qualidade (para Quadtree):** Se estiver comprimindo uma imagem, use a barra "Qualidade da Compressão". **Valores altos (próximos de 100) significam alta qualidade** e menor compressão.
+5.  **Selecionar Pasta de Saída:** Escolha onde os arquivos resultantes serão salvos.
+6.  **Iniciar Processo:** Clique em "Iniciar Compressão" (ou "Descompressão").
+7.  **Verificar Resultado:** Um diálogo aparecerá com o resumo da operação. Se a operação for bem-sucedida, a pasta de saída será aberta automaticamente.

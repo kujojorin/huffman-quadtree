@@ -1,9 +1,7 @@
-#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <fstream>
-#include <string>
+#include "MainWindow.hpp" // Inclui a definição de MainWindow
+#include <gtkmm.h> // Para Gtk::Application
 
+<<<<<<< HEAD
 #include "huffman.h"
 #include"quadtree_des.h"
 #include"quadtree_com.h"
@@ -121,3 +119,9 @@ FILE *fopen_e_teste(const char *caminho, const char *modo)
     }
     return f;
 }
+=======
+int main(int argc, char* argv[]) {
+    auto app = Gtk::Application::create("org.exemplo.compressor.gtkmm4");
+    return app->make_window_and_run<MainWindow>(argc, argv);
+}
+>>>>>>> fdbc2e4b11b786273b2a393b9aa977377a90787a
