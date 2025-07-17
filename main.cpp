@@ -1,4 +1,4 @@
-#include "MainWindow.hpp" // Inclui a definição de MainWindow
+#include "MainWindow.hpp"
 #include <gtkmm.h> // Para Gtk::Application
 
 int main(int argc, char* argv[]) {

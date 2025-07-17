@@ -3,7 +3,7 @@
 
 #include <gtkmm.h>
 #include <vector>
-#include <glibmm/dispatcher.h> // Incluindo a biblioteca do Dispatcher
+#include <glibmm/dispatcher.h>
 
 #include "FileItem.hpp"
 #include "CompressorLogic.hpp"
@@ -49,13 +49,13 @@ private:
     CompressorLogic compressor_logic;
     OutputFolderSelector output_folder_selector;
 
-    // Ferramentas para comunicação segura entre threads
+    // Ferramentas para comunicação segura entre Threads
     Glib::Dispatcher m_dispatcher;
     ProcessResult m_processing_result;
     Glib::ustring m_output_folder_for_result;
     CompressorMode m_mode_for_result;
 
-    // --- Métodos ---
+    // Métodos
     void on_select_files();
     void on_mode_switch_toggled();
     void on_process_button_clicked();
@@ -64,9 +64,10 @@ private:
     void on_algorithm_changed();
     void on_scale_value_changed();
     
-    // Método para ser chamado pelo dispatcher quando o processo termina
+    // Método para ser chamado pelo dispatcher
     void on_processing_finished();
     
+    // Assinatura correta com os 3 parâmetros
     void show_result_dialog(const ProcessResult& result, const Glib::ustring& output_folder, CompressorMode mode);
 };
 

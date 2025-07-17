@@ -24,7 +24,6 @@ MainWindow::MainWindow() : output_folder_selector(*this) {
     set_title("Compressor GTKmm 4");
     set_default_size(600, 500);
 
-    // Conectando o dispatcher ao seu método de tratamento na thread da UI
     m_dispatcher.connect(sigc::mem_fun(*this, &MainWindow::on_processing_finished));
 
     vbox.set_orientation(Gtk::Orientation::VERTICAL);
@@ -119,116 +118,16 @@ MainWindow::MainWindow() : output_folder_selector(*this) {
 
     vbox.append(status_bar);
 
-    compressor_logic.on_progress = [this](double p, const Glib::ustring& f, int t) { status_bar.update_progress(p, f, t); };
+    compressor_logic.on_progress = [this](double p, const Glib::ustring& f, int t) {
+        Glib::signal_idle().connect([this, p, f, t]() {
+            status_bar.update_progress(p, f, t);
+            return false;
+        });
+    };
     
     on_mode_switch_toggled();
     on_algorithm_changed(); 
     on_scale_value_changed();
-}
-
-void MainWindow::on_process_button_clicked() {
-    std::vector<Glib::RefPtr<Gio::File>> files_to_process;
-    for (guint i = 0; i < liststore->get_n_items(); ++i) {
-        auto item = std::dynamic_pointer_cast<FileItem>(liststore->get_object(i));
-        if (item) {
-            files_to_process.push_back(Gio::File::create_for_path(item->path));
-        }
-    }
-
-    if (files_to_process.empty()) {
-        status_bar.set_message("Nenhum arquivo para processar. Selecione arquivos primeiro.", true);
-        return;
-    }
-
-    Glib::ustring output_folder = output_folder_selector.get_selected_folder_path();
-    if (output_folder.empty()) {
-        status_bar.set_message("Selecione uma pasta de saída primeiro.", true);
-        return;
-    }
-
-    CompressorMode mode = mode_switch.get_active() ? CompressorMode::DECOMPRESS : CompressorMode::COMPRESS;
-    CompressionAlgorithm algo = static_cast<CompressionAlgorithm>(compression_algorithm_dropdown.get_selected());
-    
-    double quality_setting = scale.get_value();
-    double tolerance_level = 100.0 - quality_setting;
-    
-    button_process.set_sensitive(false);
-    button_select.set_sensitive(false);
-    mode_switch.set_sensitive(false);
-    output_folder_selector.set_sensitive(false);
-    compression_algorithm_dropdown.set_sensitive(false);
-    
-    status_bar.set_message("Iniciando processamento...");
-
-    // A thread agora armazena os resultados e chama o dispatcher.
-    std::thread([this, mode, algo, files_to_process, output_folder, tolerance_level]() {
-        // 1. Executando o trabalho pesado
-        ProcessResult result = compressor_logic.process_files(mode, algo, files_to_process, output_folder, tolerance_level);
-        
-        // 2. Armazenando os resultados em variáveis membro para a UI thread acessar
-        m_processing_result = result;
-        m_output_folder_for_result = output_folder;
-        m_mode_for_result = mode;
-        
-        // 3. Notificando a UI thread de forma segura para fazer as atualizações
-        m_dispatcher.emit();
-    }).detach();
-}
-
-// Este método é executado na thread da UI, chamado pelo dispatcher.
-void MainWindow::on_processing_finished() {
-    // Reativando todos os botões com segurança
-    button_process.set_sensitive(true);
-    button_select.set_sensitive(true);
-    mode_switch.set_sensitive(true);
-    output_folder_selector.set_sensitive(true);
-    compression_algorithm_dropdown.set_sensitive(true);
-    on_mode_switch_toggled();
-
-    // Exibindo o diálogo de resultado com os dados que foram armazenados
-    show_result_dialog(m_processing_result, m_output_folder_for_result, m_mode_for_result);
-}
-
-void MainWindow::show_result_dialog(const ProcessResult& result, const Glib::ustring& output_folder, CompressorMode mode) {
-    Glib::ustring title;
-    std::stringstream message_stream;
-
-    if (result.success) {
-        title = "Processamento Concluído";
-        
-        if (mode == CompressorMode::COMPRESS) {
-            double taxa = 0.0;
-            if (result.initial_size > 0) {
-                taxa = 100.0 * (1.0 - (double)result.final_size / result.initial_size);
-            }
-            message_stream << "Tamanho Inicial: " << result.initial_size << " bytes\n"
-                           << "Tamanho Final:   " << result.final_size << " bytes\n\n"
-                           << "Taxa de compressão: " << std::fixed << std::setprecision(2) << taxa << "%";
-        } else {
-             message_stream << "Arquivo(s) descomprimido(s) com sucesso.\n\n"
-                           << "Tamanho do arquivo compactado: " << result.initial_size << " bytes\n"
-                           << "Tamanho do arquivo restaurado: " << result.final_size << " bytes";
-        }
-        
-        liststore->remove_all();
-        status_bar.set_message("Pronto.");
-        open_folder_in_explorer(output_folder);
-        
-    } else {
-        title = "Erro no Processamento";
-        message_stream << result.message;
-        status_bar.set_message("Ocorreu uma falha.", true);
-    }
-
-    auto dialog = new Gtk::MessageDialog(*this, title, false, Gtk::MessageType::INFO, Gtk::ButtonsType::OK, true);
-    dialog->set_secondary_text(message_stream.str());
-    
-    dialog->signal_response().connect([dialog](int) {
-        dialog->hide();
-        delete dialog;
-    });
-    
-    dialog->show();
 }
 
 void MainWindow::on_algorithm_changed() {
@@ -362,4 +261,109 @@ void MainWindow::on_remove_selected_clicked() {
 void MainWindow::on_remove_all_clicked() {
     liststore->remove_all();
     status_bar.set_message("Todos os arquivos foram removidos da lista.");
+}
+
+void MainWindow::on_process_button_clicked() {
+    std::vector<Glib::RefPtr<Gio::File>> files_to_process;
+    for (guint i = 0; i < liststore->get_n_items(); ++i) {
+        auto item = std::dynamic_pointer_cast<FileItem>(liststore->get_object(i));
+        if (item) {
+            files_to_process.push_back(Gio::File::create_for_path(item->path));
+        }
+    }
+
+    if (files_to_process.empty()) {
+        status_bar.set_message("Nenhum arquivo para processar. Selecione arquivos primeiro.", true);
+        return;
+    }
+
+    Glib::ustring output_folder = output_folder_selector.get_selected_folder_path();
+    if (output_folder.empty()) {
+        status_bar.set_message("Selecione uma pasta de saída primeiro.", true);
+        return;
+    }
+
+    CompressorMode mode = mode_switch.get_active() ? CompressorMode::DECOMPRESS : CompressorMode::COMPRESS;
+    CompressionAlgorithm algo = static_cast<CompressionAlgorithm>(compression_algorithm_dropdown.get_selected());
+    
+    // Convertendo o valor de "Qualidade" da barra (0-100) para "Tolerância" (255-0)
+    double quality_setting = scale.get_value();
+    // Qualidade 0 -> Tolerância 255. Qualidade 100 -> Tolerância 0.
+    double tolerance_level = 255.0 * (1.0 - (quality_setting / 100.0));
+    
+    button_process.set_sensitive(false);
+    button_select.set_sensitive(false);
+    mode_switch.set_sensitive(false);
+    output_folder_selector.set_sensitive(false);
+    compression_algorithm_dropdown.set_sensitive(false);
+    
+    status_bar.set_message("Iniciando processamento...");
+
+    std::thread([this, mode, algo, files_to_process, output_folder, tolerance_level]() {
+        // 1. Executando o trabalho principal
+        m_processing_result = compressor_logic.process_files(mode, algo, files_to_process, output_folder, tolerance_level);
+
+        // 2. Armazenando os resultados em variáveis membro para a UI thread acessar
+        m_output_folder_for_result = output_folder;
+        m_mode_for_result = mode;
+
+        // 3. Notificando a UI thread de forma segura para fazer as atualizações
+        m_dispatcher.emit();
+    }).detach();
+}
+
+// Este método é executado na thread da UI, chamado pelo dispatcher.
+void MainWindow::on_processing_finished() {
+    // Reativando todos os botões
+    button_process.set_sensitive(true);
+    button_select.set_sensitive(true);
+    mode_switch.set_sensitive(true);
+    output_folder_selector.set_sensitive(true);
+    compression_algorithm_dropdown.set_sensitive(true);
+    on_mode_switch_toggled();
+
+    // Exibindo o diálogo de resultado com os dados que foram armazenados
+    show_result_dialog(m_processing_result, m_output_folder_for_result, m_mode_for_result);
+}
+
+void MainWindow::show_result_dialog(const ProcessResult& result, const Glib::ustring& output_folder, CompressorMode mode) {
+    Glib::ustring title;
+    std::stringstream message_stream;
+
+    if (result.success) {
+        title = "Processamento Concluído";
+        
+        if (mode == CompressorMode::COMPRESS) {
+            double taxa = 0.0;
+            if (result.initial_size > 0) {
+                taxa = 100.0 * (1.0 - (double)result.final_size / result.initial_size);
+            }
+            message_stream << "Tamanho Inicial: " << result.initial_size << " bytes\n"
+                           << "Tamanho Final:   " << result.final_size << " bytes\n\n"
+                           << "Taxa de compressão: " << std::fixed << std::setprecision(2) << taxa << "%";
+        } else {
+             message_stream << "Arquivo(s) descomprimido(s) com sucesso.\n\n"
+                           << "Tamanho do arquivo compactado: " << result.initial_size << " bytes\n"
+                           << "Tamanho do arquivo restaurado: " << result.final_size << " bytes";
+        }
+        
+        liststore->remove_all();
+        status_bar.set_message("Pronto.");
+        open_folder_in_explorer(output_folder);
+        
+    } else {
+        title = "Erro no Processamento";
+        message_stream << result.message;
+        status_bar.set_message("Ocorreu uma falha.", true);
+    }
+
+    auto dialog = new Gtk::MessageDialog(*this, title, false, Gtk::MessageType::INFO, Gtk::ButtonsType::OK, true);
+    dialog->set_secondary_text(message_stream.str());
+    
+    dialog->signal_response().connect([dialog](int) {
+        dialog->hide();
+        delete dialog;
+    });
+    
+    dialog->show();
 }
