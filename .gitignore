@@ -3,6 +3,7 @@
 
 # Compiled Object files
 main
+compressor
 *.slo
 *.lo
 *.o

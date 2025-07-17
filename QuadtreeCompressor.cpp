@@ -34,8 +34,7 @@ bool QuadtreeCompressor::compress_image(const std::string& input_path, const std
         return false;
     }
 
-    // --- Nova Lógica de Preenchimento (Padding) ---
-
+    // --- Lógica de Preenchimento (Padding) ---
     // 1. Armazenando as dimensões originais da imagem. Elas serão salvas no JSON.
     int original_width = image.cols;
     int original_height = image.rows;
@@ -71,12 +70,13 @@ bool QuadtreeCompressor::compress_image(const std::string& input_path, const std
 
     // 5. Salvando todas as dimensões necessárias no arquivo JSON.
     json j;
-    j["padded_size"] = padded_size;         // O tamanho da tela quadrada usada na compressão.
-    j["original_width"] = original_width;   // A largura original para o recorte.
-    j["original_height"] = original_height; // A altura original para o recorte.
-    j["root"] = save_tree_to_json(root);
+    j["padded"] = padded_size;
+    j["largura"] = original_width;
+    j["altura"] = original_height;
+    j["raiz"] = save_tree_to_json(root);
 
-    out << j.dump(2);
+    // Salvando o JSON de forma compacta (sem indentação) para economizar mais espaço
+    out << j.dump();
     
     if (on_progress) on_progress(1.0);
 
@@ -84,7 +84,9 @@ bool QuadtreeCompressor::compress_image(const std::string& input_path, const std
 }
 
 void QuadtreeCompressor::build_tree(Node* node, const cv::Mat& image_roi, int tolerance) {
+    // se o quadrante for metade vermelho e metade azul, a cor média será roxa.
     node->avg_color = cv::mean(image_roi);
+
     cv::Mat diff;
     cv::absdiff(image_roi, node->avg_color, diff);
     cv::Mat diff_gray;
@@ -108,13 +110,16 @@ void QuadtreeCompressor::build_tree(Node* node, const cv::Mat& image_roi, int to
 
 json QuadtreeCompressor::save_tree_to_json(Node* node) {
     if (!node) return nullptr;
+    
     json j_node;
     if (node->is_leaf) {
-        j_node["b"] = static_cast<int>(node->avg_color[0]);
-        j_node["g"] = static_cast<int>(node->avg_color[1]);
+        // Salvando as cores
         j_node["r"] = static_cast<int>(node->avg_color[2]);
+        j_node["g"] = static_cast<int>(node->avg_color[1]);
+        j_node["b"] = static_cast<int>(node->avg_color[0]);
     } else {
-        j_node["children"] = json::array({
+        // Usando a chave "filhos"
+        j_node["filhos"] = json::array({
             save_tree_to_json(node->children[0]),
             save_tree_to_json(node->children[1]),
             save_tree_to_json(node->children[2]),
@@ -143,16 +148,16 @@ bool QuadtreeCompressor::decompress_image(const std::string& input_path, const s
     
     if (on_progress) on_progress(0.2);
 
-    // Verificando se o JSON contém todas as chaves necessárias
-    if (!j.contains("padded_size") || !j.contains("original_width") || !j.contains("original_height") || !j.contains("root")) {
-        error_msg = "Arquivo JSON inválido: faltando campos de dimensão ou a raiz da árvore.";
+    // Verificando se o JSON contém todas as chaves
+    if (!j.contains("padded") || !j.contains("largura") || !j.contains("altura") || !j.contains("raiz")) {
+        error_msg = "Arquivo JSON inválido: faltando campos essenciais.";
         return false;
     }
 
     // Lendo as dimensões do JSON
-    int padded_size = j["padded_size"];
-    int original_width = j["original_width"];
-    int original_height = j["original_height"];
+    int padded_size = j["padded"];
+    int original_width = j["largura"];
+    int original_height = j["altura"];
 
     // Criando a tela preta com o tamanho do preenchimento
     cv::Mat padded_image = cv::Mat::zeros(padded_size, padded_size, CV_8UC3);
@@ -160,16 +165,12 @@ bool QuadtreeCompressor::decompress_image(const std::string& input_path, const s
     if (on_progress) on_progress(0.4);
 
     // Reconstruindo a imagem na tela com preenchimento
-    reconstruct_image(padded_image, j["root"], 0, 0, padded_size);
+    reconstruct_image(padded_image, j["raiz"], 0, 0, padded_size);
 
     if (on_progress) on_progress(0.9);
 
-    // --- Lógica de Recorte (Cropping) ---
-    // 1. Criando um retângulo (Region of Interest - ROI) com as dimensões originais.
-    cv::Rect crop_region(0, 0, original_width, original_height);
-
-    // 2. Recortando a imagem reconstruída para obter apenas a área da imagem original, descartando o preenchimento.
-    cv::Mat final_image = padded_image(crop_region);
+    // Criando um retângulo com as dimensões originais e recortando essa região
+    cv::Mat final_image = padded_image(cv::Rect(0, 0, original_width, original_height));
 
     try {
         cv::imwrite(output_path, final_image);
@@ -186,14 +187,17 @@ bool QuadtreeCompressor::decompress_image(const std::string& input_path, const s
 void QuadtreeCompressor::reconstruct_image(cv::Mat& image, const json& j_node, int x, int y, int size) {
     if (j_node.is_null()) return;
 
-    if (j_node.contains("children")) {
+    // Lendo a chave "filhos" na descompressão
+    if (j_node.contains("filhos")) {
         int half_size = size / 2;
-        reconstruct_image(image, j_node["children"][0], x, y, half_size);
-        reconstruct_image(image, j_node["children"][1], x + half_size, y, half_size);
-        reconstruct_image(image, j_node["children"][2], x, y + half_size, half_size);
-        reconstruct_image(image, j_node["children"][3], x + half_size, y + half_size, half_size);
+        reconstruct_image(image, j_node["filhos"][0], x, y, half_size);
+        reconstruct_image(image, j_node["filhos"][1], x + half_size, y, half_size);
+        reconstruct_image(image, j_node["filhos"][2], x, y + half_size, half_size);
+        reconstruct_image(image, j_node["filhos"][3], x + half_size, y + half_size, half_size);
     } 
+    // Lendo as chaves de cores R, G, B
     else if (j_node.contains("r") && j_node.contains("g") && j_node.contains("b")) {
+        // Montando a cor na ordem BGR para o OpenCV
         cv::Scalar color(j_node["b"], j_node["g"], j_node["r"]);
         cv::rectangle(image, cv::Rect(x, y, size, size), color, cv::FILLED);
     }
