@@ -6,36 +6,27 @@
 #include <glibmm/main.h>
 #include <iomanip>
 #include <sstream>
-#include <cstdlib> // Para a função system()
+#include <cstdlib>
 
-// --- Função Auxiliar Multiplataforma ---
-
-// Abrindo o explorador de arquivos no caminho especificado.
+// Função auxiliar multiplataforma para abrir o explorador de arquivos
 void open_folder_in_explorer(const Glib::ustring& path) {
     std::string command;
-
 #ifdef _WIN32
-    // Comando para o Windows Explorer
     command = "explorer \"" + std::string(path) + "\"";
 #elif __APPLE__
-    // Comando para o Finder do macOS
     command = "open \"" + std::string(path) + "\"";
 #else
-    // Comando padrão para a maioria dos ambientes de desktop Linux
     command = "xdg-open \"" + std::string(path) + "\"";
 #endif
-
-    std::cout << "Executando comando: " << command << std::endl;
-    // Usando system() para executar o comando. É uma abordagem simples e direta.
     system(command.c_str());
 }
-
-
-// --- Restante do Código ---
 
 MainWindow::MainWindow() : output_folder_selector(*this) {
     set_title("Compressor GTKmm 4");
     set_default_size(600, 500);
+
+    // Conectando o dispatcher ao seu método de tratamento na thread da UI
+    m_dispatcher.connect(sigc::mem_fun(*this, &MainWindow::on_processing_finished));
 
     vbox.set_orientation(Gtk::Orientation::VERTICAL);
     vbox.set_spacing(10);
@@ -52,6 +43,7 @@ MainWindow::MainWindow() : output_folder_selector(*this) {
     
     compression_algorithm_model = Gtk::StringList::create({"Huffman (Texto)", "Quadtree (Imagem)"});
     compression_algorithm_dropdown.set_model(compression_algorithm_model);
+    compression_algorithm_dropdown.property_selected().signal_changed().connect(sigc::mem_fun(*this, &MainWindow::on_algorithm_changed));
     process_controls_box.append(compression_algorithm_dropdown);
 
     mode_switch.set_label("Modo Descompressão");
@@ -98,14 +90,27 @@ MainWindow::MainWindow() : output_folder_selector(*this) {
     remove_buttons_box.append(button_remove_all);
     vbox.append(remove_buttons_box);
 
-    scale.set_orientation(Gtk::Orientation::HORIZONTAL);
+    scale_box.set_orientation(Gtk::Orientation::HORIZONTAL);
+    scale_box.set_spacing(10);
+    
+    low_quality_label.set_text("Baixa Qualidade");
+    high_quality_label.set_text("Alta Qualidade");
+
+    scale.set_hexpand(true);
     scale.set_range(0, 100);
     scale.set_value(90); 
     scale.set_digits(0); 
-    scale.set_draw_value(true);
-    scale.set_margin_start(10);
-    scale.set_margin_end(10);
-    vbox.append(scale);
+    scale.set_draw_value(false);
+    scale.signal_value_changed().connect(sigc::mem_fun(*this, &MainWindow::on_scale_value_changed));
+
+    scale_value_label.set_width_chars(3); 
+    scale_value_label.set_halign(Gtk::Align::CENTER);
+    
+    scale_box.append(low_quality_label);
+    scale_box.append(scale);
+    scale_box.append(scale_value_label); 
+    scale_box.append(high_quality_label);
+    vbox.append(scale_box);
 
     vbox.append(output_folder_selector);
 
@@ -118,6 +123,27 @@ MainWindow::MainWindow() : output_folder_selector(*this) {
     compressor_logic.on_progress = [this](double p, const Glib::ustring& f, int t) { status_bar.update_progress(p, f, t); };
     
     on_mode_switch_toggled();
+    on_algorithm_changed(); 
+    on_scale_value_changed();
+}
+
+void MainWindow::on_algorithm_changed() {
+    auto algorithm = static_cast<CompressionAlgorithm>(compression_algorithm_dropdown.get_selected());
+    bool is_quadtree = (algorithm == CompressionAlgorithm::QUADTREE_PNG);
+    bool is_compress_mode = !mode_switch.get_active();
+    scale_box.set_visible(is_quadtree && is_compress_mode);
+}
+
+void MainWindow::on_mode_switch_toggled() {
+    bool is_decompress = mode_switch.get_active();
+    button_process.set_label(is_decompress ? "Iniciar Descompressão" : "Iniciar Compressão");
+    on_algorithm_changed();
+    status_bar.set_message(Glib::ustring("Modo alterado para ") + (is_decompress ? "Descompressão" : "Compressão") + ".");
+}
+
+void MainWindow::on_scale_value_changed() {
+    int value = static_cast<int>(scale.get_value());
+    scale_value_label.set_text(std::to_string(value));
 }
 
 void MainWindow::on_select_files() {
@@ -234,13 +260,6 @@ void MainWindow::on_remove_all_clicked() {
     status_bar.set_message("Todos os arquivos foram removidos da lista.");
 }
 
-void MainWindow::on_mode_switch_toggled() {
-    bool is_decompress = mode_switch.get_active();
-    button_process.set_label(is_decompress ? "Iniciar Descompressão" : "Iniciar Compressão");
-    scale.set_sensitive(!is_decompress);
-    status_bar.set_message(Glib::ustring("Modo alterado para ") + (is_decompress ? "Descompressão" : "Compressão") + ".");
-}
-
 void MainWindow::on_process_button_clicked() {
     std::vector<Glib::RefPtr<Gio::File>> files_to_process;
     for (guint i = 0; i < liststore->get_n_items(); ++i) {
@@ -276,21 +295,27 @@ void MainWindow::on_process_button_clicked() {
     status_bar.set_message("Iniciando processamento...");
 
     std::thread([this, mode, algo, files_to_process, output_folder, tolerance_level]() {
-        ProcessResult result = compressor_logic.process_files(mode, algo, files_to_process, output_folder, tolerance_level);
+        // A thread executa o trabalho e armazena os resultados para a UI
+        m_processing_result = compressor_logic.process_files(mode, algo, files_to_process, output_folder, tolerance_level);
+        m_output_folder_for_result = output_folder;
+        m_mode_for_result = mode; // Armazenando o modo para o diálogo de resultado
         
-        Glib::signal_idle().connect([this, result, output_folder]() {
-            show_result_dialog(result, output_folder);
-            
-            button_process.set_sensitive(true);
-            button_select.set_sensitive(true);
-            mode_switch.set_sensitive(true);
-            output_folder_selector.set_sensitive(true);
-            compression_algorithm_dropdown.set_sensitive(true);
-            on_mode_switch_toggled();
-            
-            return false;
-        });
+        // Notificando a thread da UI de forma segura para atualizar a interface
+        m_dispatcher.emit();
     }).detach();
+}
+
+void MainWindow::on_processing_finished() {
+    // Reativando todos os botões na thread da UI
+    button_process.set_sensitive(true);
+    button_select.set_sensitive(true);
+    mode_switch.set_sensitive(true);
+    output_folder_selector.set_sensitive(true);
+    compression_algorithm_dropdown.set_sensitive(true);
+    on_mode_switch_toggled();
+
+    // Exibindo o diálogo de resultado com os dados que foram armazenados
+    show_result_dialog(m_processing_result, m_output_folder_for_result);
 }
 
 void MainWindow::show_result_dialog(const ProcessResult& result, const Glib::ustring& output_folder) {
@@ -299,19 +324,23 @@ void MainWindow::show_result_dialog(const ProcessResult& result, const Glib::ust
 
     if (result.success) {
         title = "Processamento Concluído";
-        double taxa = 0.0;
-        if (result.initial_size > 0) {
-            taxa = 100.0 * (1.0 - (double)result.final_size / result.initial_size);
-        }
         
-        message_stream << "Tamanho Inicial: " << result.initial_size << " bytes\n"
-                       << "Tamanho Final:   " << result.final_size << " bytes\n\n"
-                       << "Taxa de compressão: " << std::fixed << std::setprecision(2) << taxa << "%";
+        if (m_mode_for_result == CompressorMode::COMPRESS) {
+            double taxa = 0.0;
+            if (result.initial_size > 0) {
+                taxa = 100.0 * (1.0 - (double)result.final_size / result.initial_size);
+            }
+            message_stream << "Tamanho Inicial: " << result.initial_size << " bytes\n"
+                           << "Tamanho Final:   " << result.final_size << " bytes\n\n"
+                           << "Taxa de compressão: " << std::fixed << std::setprecision(2) << taxa << "%";
+        } else {
+            message_stream << "Arquivo(s) descomprimido(s) com sucesso.\n\n"
+                           << "Tamanho do arquivo compactado: " << result.initial_size << " bytes\n"
+                           << "Tamanho do arquivo restaurado: " << result.final_size << " bytes";
+        }
         
         liststore->remove_all();
         status_bar.set_message("Pronto.");
-        
-        // Chamando a função para abrir a pasta de saída
         open_folder_in_explorer(output_folder);
         
     } else {

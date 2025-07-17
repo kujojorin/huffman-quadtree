@@ -1,0 +1,362 @@
+Parte I: Os Pilares da Arquitetura de Tempo do Kernel Linux
+Nesta seção, construiremos a base de conhecimento, partindo da interação com o hardware
+e subindo pelas camadas de abstração que formam o alicerce do gerenciamento de tempo
+no Linux.
+1.1. A Camada de Abstração de Hardware: Fontes (clocksource) e
+Eventos (clockevent) de Relógio
+O kernel Linux é projetado para operar em uma vasta gama de arquiteturas de hardware,
+cada uma possuindo seus próprios circuitos de temporização. Exemplos incluem o Time
+Stamp Counter (TSC) presente nos processadores x86, o High Precision Event Timer (HPET), o
+ACPI Power Management Timer (ACPI PM-Timer) em PCs, e diversos contadores específicos
+em SoCs (System-on-a-Chip) ARM.1 Para evitar a proliferação de código dependente de
+hardware por todo o kernel, foi desenvolvida uma camada de abstração que desacopla a
+lógica de gerenciamento de tempo do hardware subjacente. Esta camada é composta por
+dois conceitos primordiais: "fontes de relógio" (
+clock sources) e "dispositivos de eventos de relógio" (clock event devices).4
+A separação conceitual entre "ler o tempo" e "agendar um evento" é uma decisão de design
+fundamental que confere ao kernel uma flexibilidade e performance notáveis. Embora um
+mesmo dispositivo físico, como o HPET, possa prover ambas as funcionalidades, o kernel as
+trata como abstrações distintas e ortogonais. Sistemas legados podiam ter um hardware para
+manter o tempo (um contador simples) e outro para gerar interrupções (como o
+Programmable Interval Timer, ou PIT).1 Sistemas modernos, por outro lado, podem integrar
+ambas as funções em um único chip.3 Ao abstrair as
+funções em vez de se acoplar aos dispositivos, o kernel ganha a capacidade de combinar as
+melhores características de diferentes hardwares. Por exemplo, ele pode utilizar o TSC da
+CPU, que é extremamente rápido para leitura, como a clocksource principal, enquanto usa o
+local APIC timer ou o HPET como o clockevent device para gerar interrupções de alta
+precisão.1 Esta arquitetura permite que o kernel sempre escolha a ferramenta mais adequada
+para cada tarefa: a fonte de leitura mais rápida para chamadas como
+clock_gettime() e o dispositivo de interrupção mais preciso para os hrtimers, otimizando
+simultaneamente a performance da medição de tempo e a acurácia do agendamento de
+eventos.
+Análise de kernel/time/clocksource.c
+O arquivo kernel/time/clocksource.c gerencia as fontes de relógio, que são a base para a linha
+do tempo do sistema.
+● Fontes de Relógio (struct clocksource): A responsabilidade primária de uma
+clocksource é fornecer uma linha do tempo monotônica, ou seja, um contador que
+avança continuamente.6 É, em essência, a resposta do kernel para a pergunta "que
+horas são agora?". A estrutura
+clocksource encapsula as propriedades de um contador de hardware. Seus campos
+mais importantes incluem 4:
+○ name: Uma string que identifica a fonte (ex: "tsc", "hpet").
+○ rating: Um valor numérico que indica a qualidade da fonte de relógio. Fontes com
+maior frequência, maior número de bits e maior estabilidade recebem um rating
+mais alto. O kernel utiliza este valor para selecionar a melhor fonte disponível.3
+○ read: Um ponteiro de função que o kernel chama para ler o valor bruto do
+contador de hardware.
+○ mult e shift: Dois valores inteiros usados para converter eficientemente o valor
+bruto do contador (ciclos) em nanossegundos. A conversão é feita através de
+uma multiplicação e um deslocamento de bits, uma operação muito mais rápida
+que uma divisão de 64 bits. A fórmula é: nanossegundos≈2shiftciclos×mult.4
+○ mask: Uma máscara de bits que define a largura do contador de hardware. É
+essencial para que o subsistema de timekeeping possa detectar e compensar o
+"wrap-around" (quando o contador atinge seu valor máximo e volta a zero).6
+Durante a inicialização, o kernel registra todas as fontes de relógio disponíveis.3 A
+funçãoclocksource_select() então examina a lista de fontes registradas e escolhe
+aquela com o maior rating para se tornar a curr_clocksource do sistema, a fonte de
+tempo primária.4 O espaço de usuário pode inspecionar as fontes disponíveis e a que
+está em uso através do sistema de arquivos virtual/sys, no diretório
+/sys/devices/system/clocksource/clocksource0/.3
+● Eventos de Relógio (struct clock_event_device): Se as clocksources são para ler o
+tempo, os clockevent devices são para agir sobre ele. Eles representam a abstração de
+um hardware capaz de gerar uma interrupção em um ponto específico e futuro no
+tempo.6 São eles que fornecem a base para todos os mecanismos de timer do kernel,
+desde o
+tick periódico de baixa resolução até os hrtimers de alta resolução.12 Em sistemas
+multiprocessados (SMP), a configuração ideal é ter um
+clock event device por CPU, permitindo que cada núcleo agende seus próprios eventos
+de forma independente, o que é crucial para a escalabilidade e para funcionalidades
+como o dyntick.6
+1.2. O Coração do Timekeeping: kernel/time/timekeeping.c
+Este arquivo é o centro nevrálgico da contagem de tempo no kernel. Ele utiliza a clocksource
+ativa para manter e atualizar os diferentes relógios que o sistema operacional expõe, tanto
+internamente para outros subsistemas do kernel quanto externamente para o espaço de
+usuário através de chamadas de sistema.6
+A complexidade de timekeeping.c não reside apenas em contar o tempo, mas em gerenciar
+múltiplas visões do tempo com semânticas distintas e, por vezes, conflitantes. O sistema
+expõe relógios como CLOCK_REALTIME, CLOCK_MONOTONIC e CLOCK_BOOTTIME, cada um
+com suas próprias regras e invariantes.5 Manter a consistência entre eles, especialmente
+diante de eventos como suspensão do sistema, hibernação ou ajustes de tempo via NTP
+(Network Time Protocol), é uma tarefa complexa.
+CLOCK_REALTIME deve refletir o tempo do mundo real e, portanto, pode saltar para frente ou
+para trás.15
+CLOCK_MONOTONIC, por outro lado, é garantido que nunca retrocederá, sendo a base para
+medir intervalos de tempo de forma confiável.15
+CLOCK_BOOTTIME é similar ao monotônico, mas também inclui o tempo em que o sistema
+esteve suspenso.5
+Quando o sistema é suspenso, o timekeeper precisa registrar o tempo de inatividade. Ao
+retornar, ele não pode simplesmente deixar o CLOCK_MONOTONIC saltar, pois isso quebraria
+sua garantia. Em vez disso, o offset entre o tempo de parede e o tempo monotônico é
+ajustado para absorver o período de suspensão. Da mesma forma, quando o NTP ajusta o
+CLOCK_REALTIME, o timekeeper modifica esse mesmo offset para preservar a linearidade do
+tempo monotônico. A existência da struct timekeeper e seus múltiplos offsets (offs_real,
+offs_boot, etc. 5) é, portanto, um mecanismo para gerenciar as complexas relações e
+transformações entre essas diferentes visões do tempo, garantindo que cada
+clockid_t POSIX se comporte de acordo com sua especificação.
+Estruturas de Dados Centrais
+● struct timekeeper: Esta é a estrutura central que encapsula todo o estado do
+timekeeping. Ela contém um ponteiro para a clocksource ativa, os valores mult e shift
+para conversão rápida, o último valor de ciclo lido (cycle_last) para calcular deltas de
+tempo, e os offsets que relacionam os diferentes relógios do sistema.5
+● xtime (agora parte de timekeeper): Historicamente uma variável global, xtime
+representa o tempo de parede (wall-clock time), ou seja, o tempo do mundo real
+contado a partir da Época Unix (1 de janeiro de 1970). É a base para o relógio
+CLOCK_REALTIME.1
+● wall_to_monotonic: Uma estrutura timespec crucial que armazena a diferença entre o
+tempo de parede (xtime) e o tempo monotônico. O tempo monotônico
+(CLOCK_MONOTONIC) começa em 0 no boot e nunca retrocede, tornando-o ideal para
+medir intervalos de tempo. A relação é: tempo_monoto^nico=xtime+wall_to_monotonic.
+Este offset é a chave para manter a monotonicidade do CLOCK_MONOTONIC mesmo
+quando o xtime é alterado.5
+Funções Principais
+● timekeeping_init(): Chamada durante o boot para inicializar todo o subsistema de
+timekeeping.
+● update_wall_time() / tick_periodic(): Em sistemas baseados em tick, esta função é
+chamada periodicamente para avançar o tempo do sistema. Ela lê o delta da
+clocksource, atualiza as estruturas de tempo e incrementa a variável jiffies.7
+● ktime_get(), ktime_get_real() e família: Estas são as APIs internas que o kernel usa
+para obter o tempo monotônico e o tempo real, respectivamente. Elas funcionam lendo
+o valor atual da clocksource, calculando o delta desde a última atualização completa,
+convertendo esse delta para nanossegundos e somando-o ao tempo base armazenado
+no timekeeper.16
+● vDSO (__vdso_clock_gettime): Para otimizar a performance, chamadas de sistema
+frequentes como clock_gettime são frequentemente implementadas via vDSO (Virtual
+Dynamic Shared Object). O kernel mapeia uma página de memória contendo a
+implementação da função no espaço de endereço do processo. Isso permite que a
+aplicação chame a função e leia o tempo diretamente dos dados do timekeeper
+(protegidos por seqlocks) sem o overhead de uma transição de contexto para o modo
+kernel.15
+1.3. O Pulso do Sistema: tick-sched.c e o Agendador
+Historicamente, o "tick" era o pulso fundamental do sistema, uma interrupção de timer
+periódica que impulsionava atividades críticas como a contabilidade do tempo de CPU dos
+processos e a invocação do agendador (scheduler).13 O arquivo
+tick-sched.c gerencia a lógica associada a este tick.
+● jiffies e HZ: HZ é uma constante definida em tempo de compilação que determina a
+frequência do tick em Hertz (tipicamente 100, 250 ou 1000 Hz).13 A cada tick, a variável
+global de 64 bits
+jiffies_64 é incrementada. jiffies representa o número total de ticks desde o boot e serve
+como uma unidade de tempo de baixa resolução, mas de leitura extremamente barata,
+usada extensivamente em código mais antigo e em subsistemas que não necessitam de
+alta precisão.1
+● O Tick do Agendador (scheduler_tick()): A cada tick, a função scheduler_tick() (ou
+uma função equivalente em kernels mais recentes) é chamada para a CPU atual. Sua
+principal responsabilidade é decrementar a fatia de tempo (timeslice) do processo em
+execução. Se a fatia de tempo se esgota, a função define um flag (TIF_NEED_RESCHED)
+que informa ao kernel que o agendador deve ser executado na próxima oportunidade
+segura para, possivelmente, trocar o processo em execução.24 Além disso, o tick
+atualiza as estatísticas de uso de CPU para o processo, que são vitais para os timers
+ITIMER_VIRTUAL e ITIMER_PROF.7
+● A Revolução Silenciosa: Dynamic Ticks (NO_HZ): Manter um tick periódico em uma
+CPU que está ociosa é um desperdício de energia, pois acorda o processador
+desnecessariamente a cada poucos milissegundos.29 O mecanismo de "dynamic ticks"
+(ou
+NO_HZ) foi introduzido para resolver este problema. A opção de configuração
+CONFIG_NO_HZ_IDLE (também conhecida como dyntick-idle) permite que o kernel pare
+o tick periódico quando uma CPU está ociosa.29 A lógica para isso reside em
+tick-sched.c:
+○ tick_nohz_idle_enter(): É chamada quando a CPU vai entrar em estado ocioso.
+Esta função para o timer que emula o tick periódico e, em vez disso, programa o
+clockevent device para disparar no momento do próximo evento de timer
+conhecido (seja a expiração de um hrtimer ou uma tarefa pendente de RCU).29
+○ tick_nohz_idle_exit(): É chamada quando a CPU acorda de seu estado ocioso. Ela
+reinicia o tick periódico e, crucialmente, calcula quantos ticks foram "perdidos"
+durante o período de inatividade para atualizar jiffies e outras contabilidades de
+tempo de forma atômica.29
+Em kernels modernos com NO_HZ e hrtimers, a relação entre o tick e o hardware foi invertida.
+O tick não é mais a fonte primária de eventos de tempo; em vez disso, o próprio tick periódico
+é implementado como um cliente do subsistema hrtimer. Tradicionalmente, uma interrupção
+de hardware (por exemplo, do PIT) ocorria HZ vezes por segundo, e essa interrupção
+executava a lógica do tick.7 Com a introdução dos
+hrtimers, o kernel ganhou a capacidade de programar eventos com precisão de
+nanossegundos, utilizando o clockevent device mais preciso disponível.12 A lógica
+NO_HZ exige a capacidade de parar, iniciar e reprogramar o tick dinamicamente, que é
+exatamente o que os hrtimers oferecem.29 Consequentemente, o design moderno implementa
+o tick periódico como um
+hrtimer recorrente. A função tick_sched_timer atua como o callback desse hrtimer. A cada
+expiração, ela executa seu trabalho (atualiza os tempos do processo, etc.) e se reprograma
+para o próximo período de tick usando hrtimer_forward().31 Esta inversão de controle é
+profunda: o sistema de tempo não é mais escravo de um tick de hardware de baixa resolução.
+Em vez disso, o subsistema
+hrtimers de alta resolução está no comando, e o "tick" é apenas um de seus muitos clientes,
+que pode ser gerenciado dinamicamente. Esta mudança arquitetônica foi fundamental para
+permitir tanto a precisão em tempo real quanto a eficiência energética em um único
+framework coeso.
+Parte II: Os Mecanismos de Agendamento de Ações
+Temporizadas
+Com os fundamentos da arquitetura de tempo estabelecidos, agora investigamos as duas
+principais APIs que o código do kernel utiliza para agendar a execução de funções no futuro:
+os timers de baixa resolução (timer_list) e os timers de alta resolução (hrtimer).
+Característica Timers de Baixa Resolução
+(timer_list)
+Timers de Alta Resolução
+(hrtimer)
+Arquivo Principal kernel/time/timer.c kernel/time/hrtimer.c
+Estrutura de Dados struct timer_list 27 struct hrtimer 34
+Granularidade jiffies (milisegundos,
+dependente de HZ) 20
+Nanossegundos (ktime_t) 27
+Estrutura de Gerenciamento Roda de Timers (Timer Wheel)
+27
+Árvore Rubro-Negra
+(Red-Black Tree) 27
+Complexidade de Inserção O(1) 27 O(log N)
+Complexidade de Expiração O(N) no pior caso
+(cascateamento), mas
+geralmente baixo 37
+O(k) onde k é o número de
+timers expirados
+Caso de Uso Principal Timeouts que provavelmente
+serão cancelados (rede, I/O de
+bloco) 37
+Eventos de alta precisão,
+nanosleep, POSIX timers,
+drivers de multimídia 37
+Contexto de Execução Softirq (TIMER_SOFTIRQ) 32 Softirq (HRTIMER_SOFTIRQ) ou
+contexto de interrupção 40
+2.1. Timers de Baixa Resolução: A Eficiência da "Roda de Timers"
+(timer.c)
+O arquivo kernel/time/timer.c implementa o mecanismo de timer tradicional do Linux,
+otimizado para o caso de uso mais comum no kernel: timeouts. A grande maioria dos
+timeouts, como os usados para detectar a falha de resposta em uma conexão de rede ou em
+uma operação de I/O de disco, é cancelada antes de expirar. Portanto, a prioridade do design
+é a performance de adição e remoção de timers, em detrimento da precisão absoluta da
+expiração.32
+Análise da Implementação
+● Estrutura struct timer_list: Esta estrutura define um timer de baixa resolução. Seus
+campos principais são expires, que armazena o tempo de expiração em jiffies; um
+ponteiro de função function para o callback a ser executado; e, historicamente, um
+argumento data do tipo unsigned long para ser passado ao callback.32 Em kernels mais
+recentes (após a versão 4.15), a assinatura do callback foi alterada para
+void (*function)(struct timer_list *), e o campo data foi removido. A prática moderna
+para passar dados customizados é embutir a struct timer_list dentro de uma estrutura
+maior e usar a macro from_timer dentro do callback para obter um ponteiro para a
+estrutura continente.43
+● A Roda de Timers (Timer Wheel): Em vez de manter uma única lista global ordenada
+por tempo de expiração (o que tornaria a inserção uma operação cara, O(N)), os timers
+são organizados em uma estrutura de dados chamada "timer wheel". Trata-se de um
+array de listas (buckets). Cada bucket corresponde a um valor futuro de jiffies.
+○ Funcionamento: Quando um timer é adicionado com add_timer() ou
+mod_timer(), o kernel calcula em qual bucket ele deve ser inserido com base em
+seu tempo de expiração. Esta é uma operação de complexidade O(1).27 A cada
+tick do sistema, o kernel precisa apenas processar a lista de timers que está no
+bucket correspondente ao valor atual de
+jiffies, o que é muito eficiente.
+○ Cascateamento: Para lidar com timers que expiram muito no futuro, o kernel
+utiliza múltiplas "rodas" com granularidades diferentes (por exemplo, uma roda
+para os próximos 256 jiffies, outra para os próximos 16384, e assim por diante). Os
+timers "cascateiam" de rodas de baixa granularidade (longo prazo) para rodas de
+alta granularidade (curto prazo) à medida que seu tempo de expiração se
+aproxima.27 Implementações mais recentes otimizaram este processo para evitar
+o cascateamento explícito, agrupando timers em níveis de granularidade que são
+verificados em frequências diferentes. Isso melhora ainda mais a performance,
+embora possa reduzir ligeiramente a precisão de timers com expiração muito
+longa, o que é aceitável para o caso de uso de timeouts.36
+● API: As funções principais para interagir com este subsistema são timer_setup() (para
+inicialização), add_timer() e mod_timer() (para agendar ou reagendar), e del_timer() ou
+del_timer_sync() (para cancelar). del_timer_sync() é particularmente importante em
+sistemas SMP, pois garante que, ao retornar, o callback do timer não está em execução
+em nenhuma outra CPU, evitando condições de corrida.33
+2.2. Timers de Alta Resolução (hrtimer.c): Precisão em
+Nanossegundos
+A roda de timers, com sua granularidade baseada em jiffies e o overhead potencialmente
+imprevisível do cascateamento, é inadequada para aplicações que exigem alta precisão,
+como tarefas de tempo real ou a implementação de nanosleep.37 Para atender a essa
+demanda, o subsistema
+hrtimer foi criado. Ele fornece uma API de timer completamente independente do tick do
+sistema, operando com resolução de nanossegundos.26
+Análise da Implementação
+● Estrutura struct hrtimer: Esta estrutura define um timer de alta resolução. Seus
+campos fundamentais são _softexpires, do tipo ktime_t, que armazena o tempo de
+expiração absoluto em nanossegundos; o ponteiro para a função de callback, function;
+e um ponteiro para sua base de timers (base), que está associada a uma CPU e a um
+tipo de relógio (CLOCK_MONOTONIC ou CLOCK_REALTIME).34
+● Árvore Rubro-Negra (Red-Black Tree): Ao contrário da roda de timers, os hrtimers de
+cada CPU são armazenados em uma árvore rubro-negra, uma estrutura de dados
+auto-balanceada que mantém os timers ordenados pelo seu tempo de expiração.27
+○ Funcionamento: A inserção de um novo timer com hrtimer_start() tem uma
+complexidade logarítmica, O(log N), mas garante que o timer que deve expirar
+mais cedo esteja sempre no nó "mais à esquerda" da árvore. Isso permite que o
+próximo evento a ser agendado seja encontrado em tempo constante, O(1).
+○ Quando um hrtimer é iniciado, o kernel o insere na árvore e compara seu tempo
+de expiração com o do timer que está na extrema esquerda. Se o novo timer for
+expirar antes, o clockevent device da CPU é reprogramado para este novo tempo,
+mais próximo. Isso garante que o hardware de interrupção esteja sempre
+programado para o evento mais iminente.
+● A Função de Interrupção (hrtimer_interrupt): Este é o handler de interrupção que é
+chamado pelo clockevent device da CPU quando o tempo programado é atingido. Sua
+lógica é a seguinte 49:
+1. Verifica a árvore rubro-negra e move todos os timers que já expiraram (cujo
+tempo de expiração é menor ou igual ao tempo atual) para uma lista separada.
+2. Para cada timer expirado na lista, executa sua função de callback.
+3. Após processar todos os timers expirados, ele olha para o nó mais à esquerda da
+árvore (o próximo timer a expirar) e reprograma o clockevent device para disparar
+nesse momento futuro. Se não houver mais timers, o dispositivo de evento é
+desativado.
+● API: A API para hrtimers é similar em conceito à dos timers de baixa resolução, mas
+opera com ktime_t. As funções principais são hrtimer_init(), hrtimer_start(),
+hrtimer_cancel() e hrtimer_forward() (usada para reprogramar timers periódicos de
+forma robusta).34
+Parte III: Análise Detalhada das Chamadas de Sistema
+de Tempo
+Esta seção conecta a infraestrutura interna do kernel com as interfaces que o espaço de
+usuário utiliza, detalhando como as chamadas de sistema de tempo são implementadas sobre
+os mecanismos de timers que acabamos de estudar.
+3.1. Suspensão de Processos: O Caminho de usleep e nanosleep
+A chamada de sistema POSIX nanosleep(2) é a interface moderna e preferencial para
+suspender a execução de uma thread por um intervalo de tempo preciso. Funções mais
+antigas como usleep() são geralmente implementadas na biblioteca C (glibc) como um
+invólucro para nanosleep. O objetivo é colocar o processo para "dormir" de forma eficiente,
+consumindo o mínimo de CPU, e acordá-lo o mais próximo possível do tempo solicitado.51
+A precisão e a eficiência energética de nanosleep não são propriedades da chamada de
+sistema em si, mas sim consequências diretas da sinergia entre a infraestrutura de hrtimers e
+o mecanismo de NO_HZ. Para uma suspensão longa, hrtimer_nanosleep programa um hrtimer
+para um futuro distante. Como o processo está dormindo, a CPU fica ociosa, permitindo que
+o mecanismo NO_HZ entre em ação e pare o tick periódico do sistema.29 Isso permite que a
+CPU entre em estados de baixo consumo de energia. O único evento que acordará a CPU
+será a interrupção do
+clockevent device, precisamente programada pelo hrtimer. Não há desperdício de energia
+com interrupções de tick desnecessárias. Isso contrasta drasticamente com implementações
+mais antigas, onde o processo dormiria, mas o tick continuaria a disparar, acordando a CPU
+HZ vezes por segundo apenas para verificar se havia algo a ser feito. A implementação
+moderna de nanosleep é um exemplo claro de como os subsistemas do kernel colaboram: ela
+depende da precisão dos hrtimers para acordar no momento certo e da inteligência do
+NO_HZ para economizar energia durante a espera. A performance de uma chamada de
+sistema de alto nível é um reflexo direto da sofisticação da infraestrutura de baixo nível sobre
+a qual ela é construída.
+Fluxo de Execução (do Usuário ao Kernel)
+1. Chamada e Entrada no Kernel: Uma aplicação em espaço de usuário chama
+nanosleep(). A glibc traduz essa chamada, empacota os argumentos (a estrutura
+timespec) e invoca a chamada de sistema subjacente, que geralmente é
+clock_nanosleep.53
+2. hrtimer_nanosleep(): Uma vez dentro do kernel, após a validação dos parâmetros, o
+controle é transferido para a função hrtimer_nanosleep() no arquivo
+kernel/time/hrtimer.c.40 Esta função orquestra todo o processo de suspensão:
+○ Ela aloca e inicializa uma estrutura hrtimer_sleeper. Esta estrutura é um pequeno
+invólucro que contém um struct hrtimer e um ponteiro para a tarefa atual
+(current).55
+○ A inicialização do hrtimer dentro do hrtimer_sleeper é feita com a função
+hrtimer_init_sleeper(). Um detalhe crucial aqui é que a função de callback do
+timer é definida como hrtimer_wakeup. O único propósito desta função de
+callback é acordar a tarefa que está associada a ela.
+○ A função chama hrtimer_start() para armar o timer, usando o tempo de expiração
+solicitado pela aplicação. O hrtimer é adicionado à árvore rubro-negra da CPU, e
+o clockevent device é programado se necessário.
+3. Mudança de Estado e Agendamento: Com o "despertador" programado, a tarefa
+pode agora ir dormir.
+○ A função hrtimer_nanosleep() chama do_nanosleep().
+○ Dentro de do_nanosleep(), o estado da tarefa atual é alterado de TASK_RUNNING
+para TASK_INTERRUPTIBLE. Isso significa que a tarefa pode ser acordada tanto
+pela expiração do timer quanto por um sinal.
+○ Imediatamente após a mudança de estado, a função invoca o agendador
+chamando schedule(). O agendador removerá a tarefa da CPU e selecionará
+outra tarefa da fila de execução para rodar. O processo original está agora
+oficialmente "dormindo" e não consumirá ciclos de CPU.
+4. O Despertar:
+○ Quando o tempo de expiração do hrtimer é atingido, o clockevent device da CPU
+dispara uma interrupção de hardware.
+○ O handler de interrupção genérico do kernel direciona a execução para
+hrtimer_interrupt.
+○ hrtimer_interrupt identifica o hrtimer_sleeper que expirou, remove-o da árvore e
+executa sua função de callback, hrtimer_wakeup.
+○ hrtimer_wakeup localiza o ponteiro para a tarefa que estava dormindo
+

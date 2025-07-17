@@ -23,12 +23,11 @@ struct ProcessResult {
 
 class CompressorLogic {
 public:
-    // callback on_progress
     std::function<void(double, const Glib::ustring&, int)> on_progress;
+    std::function<void(const ProcessResult&)> on_finished;
 
     CompressorLogic();
 
-    // retorna a struct de resultado
     ProcessResult process_files(
         CompressorMode mode,
         CompressionAlgorithm algorithm,
@@ -41,25 +40,13 @@ private:
     huffman huffman_compressor;
     QuadtreeCompressor quadtree_compressor;
 
-    ProcessResult handle_huffman_compression(
-        const Glib::RefPtr<Gio::File>& input_file,
-        const Glib::ustring& output_folder_path,
-        const Glib::ustring& original_file_name_hint,
-        const std::function<void(double)>& on_progress
-    );
-    ProcessResult handle_huffman_decompression(
-        const Glib::RefPtr<Gio::File>& input_file,
-        const Glib::ustring& output_folder_path,
-        const Glib::ustring& original_file_name_hint,
-        const std::function<void(double)>& on_progress
-    );
-    ProcessResult handle_quadtree_compression(
-        const Glib::RefPtr<Gio::File>& input_file,
-        const Glib::ustring& output_folder_path,
-        int tolerance,
-        const Glib::ustring& original_file_name_hint,
-        const std::function<void(double)>& on_progress
-    );
+    // handlers para huffman
+    ProcessResult handle_huffman_compression(const Glib::RefPtr<Gio::File>&, const Glib::ustring&, const Glib::ustring&, const std::function<void(double)>&);
+    ProcessResult handle_huffman_decompression(const Glib::RefPtr<Gio::File>&, const Glib::ustring&, const Glib::ustring&, const std::function<void(double)>&);
+
+    // handlers para Quadtree
+    ProcessResult handle_quadtree_compression(const Glib::RefPtr<Gio::File>&, const Glib::ustring&, int, const Glib::ustring&, const std::function<void(double)>&);
+    ProcessResult handle_quadtree_decompression(const Glib::RefPtr<Gio::File>&, const Glib::ustring&, const Glib::ustring&, const std::function<void(double)>&);
 };
 
 #endif // COMPRESSORLOGIC_HPP

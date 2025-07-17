@@ -18,7 +18,7 @@ Este projeto é uma ferramenta de compressão e descompressão de arquivos desen
     -   A barra de status informa sobre ações, erros e sucesso.
 -   **Relatório de Resultados:** Ao final de cada operação, um diálogo modal exibe um resumo com o tamanho inicial, tamanho final e a taxa de compressão/descompressão.
 -   **Atalho para Pasta de Saída:** Após uma operação bem-sucedida, o explorador de arquivos do sistema é aberto automaticamente na pasta de destino.
--   **Tratamento de Erros Robusto:** O programa é projetado para capturar erros (como tentar descomprimir um arquivo corrompido) e informar o usuário através de um diálogo, em vez de fechar inesperadamente.
+-   **Tratamento de Erros:** O programa é projetado para capturar erros (como tentar descomprimir um arquivo corrompido) e informar o usuário através de um diálogo, em vez de fechar inesperadamente.
 
 ## Como Funciona
 

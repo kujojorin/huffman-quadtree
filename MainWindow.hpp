@@ -3,6 +3,7 @@
 
 #include <gtkmm.h>
 #include <vector>
+#include <glibmm/dispatcher.h> // Incluindo a biblioteca do Dispatcher
 
 #include "FileItem.hpp"
 #include "CompressorLogic.hpp"
@@ -17,6 +18,7 @@ private:
     // Contêineres
     Gtk::Box vbox;
     Gtk::Box process_controls_box;
+    Gtk::Box scale_box;
 
     // Widgets de controle
     Gtk::Label algorithm_label;
@@ -37,6 +39,9 @@ private:
 
     // Controles de processamento final
     Gtk::Scale scale;
+    Gtk::Label low_quality_label;
+    Gtk::Label high_quality_label;
+    Gtk::Label scale_value_label;
     Gtk::Button button_process;
     
     // Classes de Lógica
@@ -44,14 +49,24 @@ private:
     CompressorLogic compressor_logic;
     OutputFolderSelector output_folder_selector;
 
+    // Ferramentas para comunicação segura entre Threads
+    Glib::Dispatcher m_dispatcher;
+    ProcessResult m_processing_result;
+    Glib::ustring m_output_folder_for_result;
+    CompressorMode m_mode_for_result;
+
     // Métodos
     void on_select_files();
     void on_mode_switch_toggled();
     void on_process_button_clicked();
     void on_remove_selected_clicked();
     void on_remove_all_clicked();
+    void on_algorithm_changed();
+    void on_scale_value_changed();
     
-    // O método agora recebe o caminho da pasta para poder abri-la
+    // método a ser chamado pelo dispatcher quando o processo termina
+    void on_processing_finished();
+    
     void show_result_dialog(const ProcessResult& result, const Glib::ustring& output_folder);
 };
 
