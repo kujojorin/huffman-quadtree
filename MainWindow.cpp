@@ -285,11 +285,12 @@ void MainWindow::on_process_button_clicked() {
 
     CompressorMode mode = mode_switch.get_active() ? CompressorMode::DECOMPRESS : CompressorMode::COMPRESS;
     CompressionAlgorithm algo = static_cast<CompressionAlgorithm>(compression_algorithm_dropdown.get_selected());
-    
-    // Convertendo o valor de "Qualidade" da barra (0-100) para "Tolerância" (255-0)
+
     double quality_setting = scale.get_value();
-    // Qualidade 0 -> Tolerância 255. Qualidade 100 -> Tolerância 0.
-    double tolerance_level = 255.0 * (1.0 - (quality_setting / 100.0));
+    // Mapeando a "Qualidade" (0-100) para um intervalo de tolerância mais útil (50-0).
+    // Qualidade 100 -> Tolerância 0
+    // Qualidade 0   -> Tolerância 50
+    double tolerance_level = 50.0 * (1.0 - (quality_setting / 100.0));
     
     button_process.set_sensitive(false);
     button_select.set_sensitive(false);
